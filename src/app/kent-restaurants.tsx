@@ -362,7 +362,7 @@ export default function KentRestaurantsDirectory() {
       window.matchMedia("(display-mode: standalone)").matches ||
         Boolean(
           "standalone" in navigator &&
-            (navigator as Navigator & { standalone?: boolean }).standalone,
+          (navigator as Navigator & { standalone?: boolean }).standalone,
         ),
     );
 
@@ -481,7 +481,7 @@ export default function KentRestaurantsDirectory() {
         left={4}
         p={3}
         position="absolute"
-        rounded="md"
+        rounded="full"
         top={4}
         transform="translateY(-150%)"
         zIndex={20}
@@ -522,10 +522,10 @@ export default function KentRestaurantsDirectory() {
             />
             <Stack gap={5} maxW="4xl" position="relative">
               <Flex gap={3} wrap="wrap">
-                <Badge colorPalette="orange" size="lg">
+                <Badge colorPalette="orange" rounded="full" size="lg">
                   📍 Kent Guide
                 </Badge>
-                <Badge colorPalette="green" size="lg">
+                <Badge colorPalette="green" rounded="full" size="lg">
                   ✅ Last checked: 12 June 2026
                 </Badge>
               </Flex>
@@ -590,12 +590,12 @@ export default function KentRestaurantsDirectory() {
                       <Button
                         colorPalette={filter === "All" ? "gray" : "green"}
                         key={filter}
-                        minH="44px"
                         onClick={() => {
                           setStatusFilter(filter);
                           setOpenRestaurantId(null);
                         }}
-                        size="sm"
+                        rounded="full"
+                        size="xs"
                         variant={statusFilter === filter ? "solid" : "outline"}
                       >
                         {getStatusFilterLabel(filter)}
@@ -611,18 +611,18 @@ export default function KentRestaurantsDirectory() {
                   <Flex gap={2} wrap="wrap">
                     <Button
                       colorPalette="green"
-                      minH="44px"
                       onClick={() => setViewMode("list")}
-                      size="sm"
+                      rounded="full"
+                      size="xs"
                       variant={viewMode === "list" ? "solid" : "outline"}
                     >
                       📋 List
                     </Button>
                     <Button
                       colorPalette="green"
-                      minH="44px"
                       onClick={() => setViewMode("map")}
-                      size="sm"
+                      rounded="full"
+                      size="xs"
                       variant={viewMode === "map" ? "solid" : "outline"}
                     >
                       🗺️ Map
@@ -652,8 +652,8 @@ export default function KentRestaurantsDirectory() {
                   <Button
                     colorPalette="green"
                     loading={isLocating}
-                    minH="44px"
                     onClick={requestCurrentLocation}
+                    rounded="full"
                     size="sm"
                     variant="outline"
                   >
@@ -662,16 +662,16 @@ export default function KentRestaurantsDirectory() {
                   <Button
                     colorPalette="green"
                     disabled={!userLocation}
-                    minH="44px"
                     onClick={() => setSortMode("distance")}
+                    rounded="full"
                     size="sm"
                     variant={sortMode === "distance" ? "solid" : "outline"}
                   >
                     🧭 Nearest First
                   </Button>
                   <Button
-                    minH="44px"
                     onClick={() => setSortMode("default")}
+                    rounded="full"
                     size="sm"
                     variant={sortMode === "default" ? "solid" : "outline"}
                   >
@@ -732,6 +732,7 @@ export default function KentRestaurantsDirectory() {
       <InstallAppButton
         installPrompt={installPrompt}
         isStandalone={isStandalone}
+        onCloseHint={() => setShowInstallHint(false)}
         onInstall={handleInstallApp}
         showInstallHint={showInstallHint}
       />
@@ -742,11 +743,13 @@ export default function KentRestaurantsDirectory() {
 function InstallAppButton({
   installPrompt,
   isStandalone,
+  onCloseHint,
   onInstall,
   showInstallHint,
 }: {
   installPrompt: BeforeInstallPromptEvent | null;
   isStandalone: boolean;
+  onCloseHint: () => void;
   onInstall: () => void;
   showInstallHint: boolean;
 }) {
@@ -768,31 +771,61 @@ function InstallAppButton({
         borderColor="rgba(255, 255, 255, 0.16)"
         borderWidth="1px"
         color="white"
-        p={3}
-        rounded="xl"
+        p={showInstallHint && !installPrompt ? 4 : 3}
+        rounded="3xl"
       >
-        <Flex align="center" gap={3} justify="space-between">
-          <Stack gap={0} minW={0}>
-            <Text fontSize="sm" fontWeight="bold">
-              Keep this Kent guide handy
-            </Text>
-            <Text aria-live="polite" color="whiteAlpha.700" fontSize="xs">
-              {showInstallHint && !installPrompt
-                ? "📲 Use Share, then Add to Home Screen."
-                : "📲 Install it on your phone for quick access."}
-            </Text>
+        {showInstallHint && !installPrompt ? (
+          <Stack gap={3}>
+            <Flex align="flex-start" gap={3} justify="space-between">
+              <Stack gap={1} minW={0}>
+                <Text fontSize="sm" fontWeight="bold">
+                  📲 Install on iPhone
+                </Text>
+                <Text aria-live="polite" color="whiteAlpha.800" fontSize="xs">
+                  iPhone does not allow websites to open the install prompt
+                  directly. Use Safari’s share menu instead.
+                </Text>
+              </Stack>
+              <Button
+                color="white"
+                minH="36px"
+                onClick={onCloseHint}
+                rounded="full"
+                size="xs"
+                variant="ghost"
+              >
+                Close
+              </Button>
+            </Flex>
+            <Stack color="whiteAlpha.900" fontSize="sm" gap={1}>
+              <Text>1. Tap the Share button in Safari.</Text>
+              <Text>2. Choose “Add to Home Screen”.</Text>
+              <Text>3. Tap “Add”.</Text>
+            </Stack>
           </Stack>
-          <Button
-            bg="#f3b35c"
-            color="#1f2a24"
-            minH="44px"
-            onClick={onInstall}
-            size="sm"
-            variant="solid"
-          >
-            📲 Install
-          </Button>
-        </Flex>
+        ) : (
+          <Flex align="center" gap={3} justify="space-between">
+            <Stack gap={0} minW={0}>
+              <Text fontSize="sm" fontWeight="bold">
+                Keep this Kent guide handy
+              </Text>
+              <Text aria-live="polite" color="whiteAlpha.700" fontSize="xs">
+                📲 Install it on your phone for quick access.
+              </Text>
+            </Stack>
+            <Button
+              bg="#f3b35c"
+              color="#1f2a24"
+              minH="44px"
+              onClick={onInstall}
+              rounded="full"
+              size="sm"
+              variant="solid"
+            >
+              {installPrompt ? "📲 Install" : "📲 How"}
+            </Button>
+          </Flex>
+        )}
       </Box>
     </Box>
   );
@@ -1086,8 +1119,8 @@ function RestaurantRow({
             aria-controls={detailsId}
             aria-expanded={isOpen}
             colorPalette="green"
-            minH="44px"
             onClick={onToggle}
+            rounded="full"
             size="sm"
             variant={isOpen ? "solid" : "outline"}
           >
@@ -1171,7 +1204,7 @@ function StatusBadge({ status }: { status: RestaurantStatus }) {
     status === "Confirmed" ? "green" : status === "Likely" ? "yellow" : "gray";
 
   return (
-    <Badge colorPalette={colorPalette} size="sm">
+    <Badge colorPalette={colorPalette} rounded="full" size="sm">
       {getStatusFilterLabel(status)}
     </Badge>
   );

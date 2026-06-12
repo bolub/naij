@@ -1,15 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import { Provider } from "@/components/ui/provider";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const monaSans = localFont({
+  src: "../../public/fonts/MonaSans.woff2",
+  variable: "--font-mona-sans",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -35,7 +31,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable}`}
+      className={`${monaSans.variable} ${monaSans.className}`}
       suppressHydrationWarning
     >
       <body>
