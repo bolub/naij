@@ -748,7 +748,7 @@ export default function KentRestaurantsDirectory() {
       window.matchMedia("(display-mode: standalone)").matches ||
         Boolean(
           "standalone" in navigator &&
-            (navigator as Navigator & { standalone?: boolean }).standalone,
+          (navigator as Navigator & { standalone?: boolean }).standalone,
         ),
     );
 
@@ -1055,7 +1055,7 @@ export default function KentRestaurantsDirectory() {
             position="relative"
             rounded={{ base: "xl", md: "2xl" }}
           >
-            <Stack gap={5} maxW="4xl" position="relative">
+            <Stack gap={5} position="relative">
               <Flex align="center" gap={3} justify="space-between" wrap="wrap">
                 <Text
                   color={colors.accent}
