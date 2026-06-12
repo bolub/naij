@@ -4,15 +4,40 @@ import {
   Badge,
   Box,
   Button,
+  Combobox,
   Container,
   Flex,
   Heading,
+  Input,
   Link,
   SimpleGrid,
   Stack,
   Text,
+  useFilter,
+  useListCollection,
 } from "@chakra-ui/react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+const colors = {
+  accent: "#244438",
+  accentSoft: "#edf3ef",
+  bg: "#f7f4ed",
+  border: "#ded7ca",
+  borderMuted: "#e9e2d6",
+  candidate: "#7b6a54",
+  ink: "#24231f",
+  likely: "#b7752b",
+  muted: "#6f675c",
+  panel: "#fffdf8",
+  pin: "#d14e2f",
+  water: "#d7e8e1",
+};
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -25,6 +50,8 @@ type Coordinates = {
 };
 
 type RestaurantStatus = "Confirmed" | "Likely" | "Candidate";
+type Region = "Kent" | "London";
+type RegionFilter = "All" | Region;
 type StatusFilter = "All" | RestaurantStatus;
 type SortMode = "default" | "distance";
 type ViewMode = "list" | "map";
@@ -32,6 +59,7 @@ type ViewMode = "list" | "map";
 type Restaurant = {
   id: string;
   name: string;
+  region: Region;
   town: string;
   address: string;
   coordinates: Coordinates;
@@ -50,17 +78,26 @@ type RestaurantWithDistance = {
   restaurant: Restaurant;
 };
 
+type NominatimSearchResult = {
+  display_name?: string;
+  lat?: string;
+  lon?: string;
+};
+
 const statusFilters: StatusFilter[] = [
   "All",
   "Confirmed",
   "Likely",
   "Candidate",
 ];
+const regionFilters: RegionFilter[] = ["All", "Kent", "London"];
+const nominatimSearchUrl = "https://nominatim.openstreetmap.org/search";
 
 const restaurants: Restaurant[] = [
   {
     id: "tasty-african-food-chatham",
     name: "Tasty African Food - Chatham",
+    region: "Kent",
     town: "Chatham",
     address: "219 High St, Chatham ME4 4BG",
     coordinates: { latitude: 51.382282, longitude: 0.526214 },
@@ -78,6 +115,7 @@ const restaurants: Restaurant[] = [
   {
     id: "tasty-african-food-dartford",
     name: "Tasty African Food - Dartford",
+    region: "Kent",
     town: "Dartford",
     address: "25 Lowfield St, Dartford DA1 1EW",
     coordinates: { latitude: 51.443026, longitude: 0.216388 },
@@ -95,6 +133,7 @@ const restaurants: Restaurant[] = [
   {
     id: "tasty-african-food-gravesend",
     name: "Tasty African Food - Gravesend",
+    region: "Kent",
     town: "Gravesend",
     address: "1 Queen St, Gravesend DA12 2EQ",
     coordinates: { latitude: 51.442782, longitude: 0.370906 },
@@ -112,6 +151,7 @@ const restaurants: Restaurant[] = [
   {
     id: "tasty-african-food-sittingbourne",
     name: "Tasty African Food - Sittingbourne",
+    region: "Kent",
     town: "Sittingbourne",
     address: "52 East St, Sittingbourne ME10 4RT",
     coordinates: { latitude: 51.338757, longitude: 0.742794 },
@@ -129,6 +169,7 @@ const restaurants: Restaurant[] = [
   {
     id: "tobis-restaurant-bar",
     name: "Tobis Restaurant & Bar",
+    region: "Kent",
     town: "Maidstone",
     address: "96 Week St, Maidstone ME14 1RL",
     coordinates: { latitude: 51.276552, longitude: 0.522517 },
@@ -146,6 +187,7 @@ const restaurants: Restaurant[] = [
   {
     id: "de-honourables-restaurant",
     name: "De Honourables Restaurant",
+    region: "Kent",
     town: "Gillingham",
     address: "10 High St, Gillingham ME7 1BB",
     coordinates: { latitude: 51.389078, longitude: 0.54299 },
@@ -163,6 +205,7 @@ const restaurants: Restaurant[] = [
   {
     id: "chop-africana",
     name: "Chop Africana",
+    region: "Kent",
     town: "Canterbury",
     address: "Unit 5, City Business Park, Marshwood Close, Canterbury CT1 1DX",
     coordinates: { latitude: 51.291295, longitude: 1.099587 },
@@ -180,6 +223,7 @@ const restaurants: Restaurant[] = [
   {
     id: "amala-buka",
     name: "ÀMÀLÀ BUKA",
+    region: "Kent",
     town: "Rochester",
     address: "1A Cuxton Rd, Rochester ME2 2BT",
     coordinates: { latitude: 51.39573, longitude: 0.490827 },
@@ -197,6 +241,7 @@ const restaurants: Restaurant[] = [
   {
     id: "ikoyi-suya-africa-restaurant",
     name: "Ikoyi Suya Africa Restaurant",
+    region: "Kent",
     town: "Gillingham",
     address: "103 High St, Gillingham ME7 1BL",
     coordinates: { latitude: 51.387319, longitude: 0.544919 },
@@ -213,6 +258,7 @@ const restaurants: Restaurant[] = [
   {
     id: "zamnig-african-restaurant",
     name: "Zamnig African Restaurant",
+    region: "Kent",
     town: "Chatham",
     address: "13A Church St, Chatham ME4 4BS",
     coordinates: { latitude: 51.380175, longitude: 0.529231 },
@@ -230,6 +276,7 @@ const restaurants: Restaurant[] = [
   {
     id: "heernus-kitchen",
     name: "Heernu's Kitchen",
+    region: "Kent",
     town: "Dartford",
     address: "1 Empire Buildings, Waterside, Dartford DA1 4JJ",
     coordinates: { latitude: 51.452298, longitude: 0.178477 },
@@ -247,6 +294,7 @@ const restaurants: Restaurant[] = [
   {
     id: "yaboos-kitchen",
     name: "Yaboos Kitchen",
+    region: "Kent",
     town: "Sittingbourne",
     address: "Woodberry Dr, Sittingbourne ME10 3AX",
     coordinates: { latitude: 51.338718, longitude: 0.757108 },
@@ -264,6 +312,7 @@ const restaurants: Restaurant[] = [
   {
     id: "dipfingers-catering",
     name: "Dipfingers Catering 'DFC'",
+    region: "Kent",
     town: "Margate",
     address: "112 Northdown Rd, Margate CT9 2RE",
     coordinates: { latitude: 51.389351, longitude: 1.391482 },
@@ -281,6 +330,7 @@ const restaurants: Restaurant[] = [
   {
     id: "golden-dishes",
     name: "Golden Dishes (Flavours for Royalty)",
+    region: "Kent",
     town: "Gillingham",
     address: "4 Skinner St, Gillingham ME7 1HD",
     coordinates: { latitude: 51.387897, longitude: 0.54521 },
@@ -297,6 +347,7 @@ const restaurants: Restaurant[] = [
   {
     id: "arena-lounge",
     name: "Arena Lounge",
+    region: "Kent",
     town: "Chatham",
     address: "307 High St, Chatham ME4 4BN",
     coordinates: { latitude: 51.380777, longitude: 0.529264 },
@@ -312,6 +363,7 @@ const restaurants: Restaurant[] = [
   {
     id: "lounge-44",
     name: "Lounge 44",
+    region: "Kent",
     town: "Chatham",
     address: "44 High St, Chatham ME4 4DS",
     coordinates: { latitude: 51.38342, longitude: 0.520125 },
@@ -326,29 +378,363 @@ const restaurants: Restaurant[] = [
     notes:
       "Lowest-confidence entry in the current directory and should be verified before promotional use.",
   },
+  {
+    id: "chukus-tottenham",
+    name: "Chuku's",
+    region: "London",
+    town: "Tottenham",
+    address: "274 High Road, Tottenham, London N15 4AJ",
+    coordinates: { latitude: 51.585955, longitude: -0.071408 },
+    website: "https://www.chukuslondon.co.uk/",
+    category: "Nigerian tapas restaurant",
+    rating: "Not published",
+    ratingSource: "Official site and public listings",
+    status: "Confirmed",
+    evidence:
+      "The official site describes Chuku's as the world's first Nigerian tapas restaurant and publishes the Tottenham address.",
+    notes:
+      "Strong London listing with explicit Nigerian positioning, address, email, and booking information on the official site.",
+  },
+  {
+    id: "enish-shoreditch",
+    name: "Enish Shoreditch",
+    region: "London",
+    town: "Shoreditch",
+    address: "1c, Unit 5, Rosewood Building, Cremer Street, London E2 8GX",
+    coordinates: { latitude: 51.530175, longitude: -0.07476 },
+    phone: "020 8038 5661",
+    website: "https://enishglobal.com/blogs/locations/enish-shorditch",
+    category: "Nigerian / Afro-fusion restaurant",
+    rating: "Not published",
+    ratingSource: "Official Enish location page",
+    status: "Confirmed",
+    evidence:
+      "The official Enish page describes authentic Nigerian flavours at the Shoreditch location and publishes the address and phone.",
+    notes:
+      "Part of the Enish group, whose UK pages position the brand around Nigerian cuisine and West African hospitality.",
+  },
+  {
+    id: "enish-soho-edition",
+    name: "Enish Soho Edition",
+    region: "London",
+    town: "Soho",
+    address: "187 B Wardour St, London W1F 8ZB",
+    coordinates: { latitude: 51.515367, longitude: -0.135602 },
+    phone: "07341 230232",
+    website: "https://enishglobal.com/blogs/locations/enish-soho-edition",
+    category: "Nigerian / Afro-fusion restaurant",
+    rating: "Not published",
+    ratingSource: "Official Enish location page",
+    status: "Confirmed",
+    evidence:
+      "The official location page references Nigerian and Afro-fusion cuisine and gives the Soho address and phone.",
+    notes: "Central London Enish branch with dining and nightlife positioning.",
+  },
+  {
+    id: "enish-camberwell-buka",
+    name: "Enish Camberwell Buka",
+    region: "London",
+    town: "Camberwell",
+    address: "91 Camberwell Rd, London SE5 0EZ",
+    coordinates: { latitude: 51.483375, longitude: -0.093915 },
+    phone: "020 4529 7274",
+    website: "https://enishglobal.com/blogs/locations/camberwell-buka",
+    category: "West African / Nigerian restaurant",
+    rating: "Not published",
+    ratingSource: "Official Enish location page",
+    status: "Confirmed",
+    evidence:
+      "The official page lists Enish Camberwell Buka and Enish describes its locations as redefining Nigerian cuisine.",
+    notes:
+      "Buka-style Enish branch with published address, phone, amenities, and booking link.",
+  },
+  {
+    id: "enish-camberwell-24",
+    name: "Enish Camberwell 24",
+    region: "London",
+    town: "Camberwell",
+    address: "46 Camberwell Church St, London SE5 8QZ",
+    coordinates: { latitude: 51.473561, longitude: -0.088737 },
+    website: "https://enishglobal.com/blogs/events?region=uk&view=locations",
+    category: "Nigerian / Afro-fusion restaurant",
+    rating: "Not published",
+    ratingSource: "Official Enish locations page",
+    status: "Confirmed",
+    evidence:
+      "The official Enish UK locations page lists Camberwell 24 with this address and frames the group around Nigerian cuisine.",
+    notes: "A separate Camberwell Enish location from Camberwell Buka.",
+  },
+  {
+    id: "enish-camden",
+    name: "Enish Camden",
+    region: "London",
+    town: "Camden",
+    address: "392 Camden Rd, London N7 0SJ",
+    coordinates: { latitude: 51.55345, longitude: -0.122548 },
+    phone: "020 4629 2222",
+    website: "https://enishglobal.com/blogs/locations/camden",
+    category: "Nigerian / Afro-fusion restaurant",
+    rating: "Not published",
+    ratingSource: "Official Enish location page",
+    status: "Confirmed",
+    evidence:
+      "The official page lists the Camden branch and Enish describes its group as built around Nigerian cuisine and West African hospitality.",
+    notes:
+      "North London Enish branch near Camden and Chalk Farm transport links.",
+  },
+  {
+    id: "enish-croydon",
+    name: "Enish Croydon",
+    region: "London",
+    town: "Croydon",
+    address: "62 S End, Croydon CR0 1DP",
+    coordinates: { latitude: 51.365737, longitude: -0.099249 },
+    phone: "020 8686 6600",
+    website: "https://enishglobal.com/blogs/locations/croydon",
+    category: "Nigerian / Afro-fusion restaurant",
+    rating: "Not published",
+    ratingSource: "Official Enish location page",
+    status: "Confirmed",
+    evidence:
+      "The official Croydon page lists the address and phone, with Enish's site describing Nigerian cuisine across its locations.",
+    notes:
+      "South London branch near East Croydon, West Croydon, and tram links.",
+  },
+  {
+    id: "enish-finchley-road",
+    name: "Enish Finchley Rd",
+    region: "London",
+    town: "Finchley Road",
+    address: "299 Finchley Rd, London NW3 6DT",
+    coordinates: { latitude: 51.549632, longitude: -0.182232 },
+    phone: "020 7879 8399",
+    website: "https://enishglobal.com/blogs/locations/finchley-rd",
+    category: "Nigerian / Afro-fusion restaurant",
+    rating: "Not published",
+    ratingSource: "Official Enish location page",
+    status: "Confirmed",
+    evidence:
+      "The official Finchley Road page references Nigerian hospitality and lists the branch address and phone.",
+    notes:
+      "North-west London Enish branch with dine-in, bar, and late-night positioning.",
+  },
+  {
+    id: "enish-oxford-street",
+    name: "Enish Oxford Street",
+    region: "London",
+    town: "Fitzrovia",
+    address: "3 Berners St, London W1T 3LD",
+    coordinates: { latitude: 51.516449, longitude: -0.135789 },
+    website: "https://enishglobal.com/blogs/events?region=uk&view=locations",
+    category: "Nigerian / Afro-fusion restaurant",
+    rating: "Not published",
+    ratingSource: "Official Enish locations page",
+    status: "Confirmed",
+    evidence:
+      "The official Enish UK locations page lists Oxford Street with this Berners Street address.",
+    notes: "Central London Enish branch close to Oxford Street and Soho.",
+  },
+  {
+    id: "enish-ilford",
+    name: "Enish Ilford",
+    region: "London",
+    town: "Ilford",
+    address: "291-293 High Rd, Ilford IG1 1NR",
+    coordinates: { latitude: 51.560664, longitude: 0.080871 },
+    website: "https://enishglobal.com/blogs/events?region=uk&view=locations",
+    category: "Nigerian / Afro-fusion restaurant",
+    rating: "Not published",
+    ratingSource: "Official Enish locations page",
+    status: "Confirmed",
+    evidence:
+      "The official Enish UK locations page lists Ilford with this High Road address.",
+    notes: "East London Enish branch in Ilford town centre.",
+  },
+  {
+    id: "enish-brixton",
+    name: "Enish Brixton",
+    region: "London",
+    town: "Brixton",
+    address: "330A Coldharbour Ln, London SW9 8QH",
+    coordinates: { latitude: 51.463008, longitude: -0.108426 },
+    website: "https://enishglobal.com/blogs/events?region=uk&view=locations",
+    category: "Nigerian / Afro-fusion restaurant",
+    rating: "Not published",
+    ratingSource: "Official Enish locations page",
+    status: "Confirmed",
+    evidence:
+      "The official Enish UK locations page lists Brixton and publishes this Coldharbour Lane address.",
+    notes: "South London Enish branch in central Brixton.",
+  },
+  {
+    id: "enish-knightsbridge",
+    name: "Enish Knightsbridge",
+    region: "London",
+    town: "Knightsbridge",
+    address: "9 Knightsbridge Grn, London SW1X 7QL",
+    coordinates: { latitude: 51.501366, longitude: -0.162412 },
+    website: "https://enishglobal.com/blogs/events?region=uk&view=locations",
+    category: "Nigerian / Afro-fusion restaurant",
+    rating: "Not published",
+    ratingSource: "Official Enish locations page",
+    status: "Confirmed",
+    evidence:
+      "The official Enish UK locations page lists Knightsbridge with this address.",
+    notes:
+      "West London Enish branch with a more premium central London setting.",
+  },
+  {
+    id: "enish-lewisham",
+    name: "Enish Lewisham",
+    region: "London",
+    town: "Lewisham",
+    address: "228 Lewisham High Street, London SE13 6JU",
+    coordinates: { latitude: 51.458835, longitude: -0.012814 },
+    website: "https://enishglobal.com/blogs/events?region=uk&view=locations",
+    category: "Nigerian restaurant",
+    rating: "Not published",
+    ratingSource: "Official Enish locations page",
+    status: "Confirmed",
+    evidence:
+      "The official Enish locations page states that Enish Lewisham brings authentic Nigerian cuisine to South East London.",
+    notes:
+      "A strong Nigerian listing because the official location text explicitly says authentic Nigerian cuisine.",
+  },
+  {
+    id: "enish-old-kent-road",
+    name: "Enish Old Kent Road",
+    region: "London",
+    town: "Old Kent Road",
+    address: "610 Old Kent Rd, London SE15 1JB",
+    coordinates: { latitude: 51.48305, longitude: -0.064763 },
+    website: "https://enishglobal.com/blogs/events?region=uk&view=locations",
+    category: "Nigerian / Afro-fusion restaurant",
+    rating: "Not published",
+    ratingSource: "Official Enish locations page",
+    status: "Confirmed",
+    evidence:
+      "The official Enish UK locations page lists Old Kent Road with this address and frames Enish around Nigerian cuisine.",
+    notes: "South London Enish branch on Old Kent Road.",
+  },
+  {
+    id: "805-old-kent-road",
+    name: "805 Restaurants - Old Kent Road",
+    region: "London",
+    town: "Old Kent Road",
+    address: "805 Old Kent Rd, London SE15 1NX",
+    coordinates: { latitude: 51.479865, longitude: -0.056487 },
+    website: "https://www.805restaurants.com/",
+    category: "Authentic West African / Nigerian restaurant",
+    rating: "Not published",
+    ratingSource: "Official 805 Restaurants site",
+    status: "Confirmed",
+    evidence:
+      "The official site says its menu tells the story of Nigerian food and lists Old Kent Road among UK locations, with the Old Kent Road address embedded on the site.",
+    notes: "Included as the London Old Kent Road branch of 805 Restaurants.",
+  },
+  {
+    id: "chishuru-fitzrovia",
+    name: "Chishuru",
+    region: "London",
+    town: "Fitzrovia",
+    address: "3 Great Titchfield Street, London W1W 8AX",
+    coordinates: { latitude: 51.516614, longitude: -0.139947 },
+    website: "https://www.chishuru.com/",
+    category: "Modern West African restaurant",
+    rating: "Michelin-starred",
+    ratingSource: "Official site and Michelin-linked public listings",
+    status: "Likely",
+    evidence:
+      "The official site calls Chishuru a modern West African restaurant and says founder-chef Joké Bakare was born and raised in Nigeria, serving Yoruba, Igbo, and Hausa influences.",
+    notes:
+      "Highly relevant for Nigerian food culture, though it identifies as modern West African rather than strictly Nigerian.",
+  },
+  {
+    id: "ikoyi-strand",
+    name: "Ikoyi",
+    region: "London",
+    town: "Strand",
+    address: "180 Strand, London WC2R 1EA",
+    coordinates: { latitude: 51.512422, longitude: -0.115084 },
+    phone: "020 3583 4660",
+    website: "https://ikoyilondon.com/",
+    category: "West African-inspired fine dining",
+    rating: "Two Michelin stars",
+    ratingSource: "Official site and Michelin-linked public listings",
+    status: "Likely",
+    evidence:
+      "The official site publishes the address; public restaurant references describe Ikoyi as West African-inspired, and the name is tied to Ikoyi in Lagos.",
+    notes:
+      "A fine-dining, spice-led interpretation rather than a traditional Nigerian restaurant.",
+  },
+  {
+    id: "akoko-fitzrovia",
+    name: "Akoko",
+    region: "London",
+    town: "Fitzrovia",
+    address: "21 Berners Street, London W1T 3LP",
+    coordinates: { latitude: 51.517912, longitude: -0.136752 },
+    website: "https://akoko.co.uk/",
+    category: "West African / Nigerian fine dining",
+    rating: "Michelin-starred",
+    ratingSource: "Michelin-linked public listings and restaurant guides",
+    status: "Likely",
+    evidence:
+      "Public restaurant references describe Akoko as West African with Nigerian/Yoruba roots and list 21 Berners Street as the address.",
+    notes:
+      "Included as a Nigerian-adjacent West African fine-dining listing rather than a casual restaurant.",
+  },
+  {
+    id: "akara-borough",
+    name: "Akara",
+    region: "London",
+    town: "Borough",
+    address: "Arch 208, 18 Stoney Street, London SE1 9AD",
+    coordinates: { latitude: 51.505938, longitude: -0.091734 },
+    phone: "020 3861 5190",
+    website: "https://akara.co.uk/",
+    category: "West African restaurant",
+    rating: "Not published",
+    ratingSource: "Restaurant review and public listings",
+    status: "Likely",
+    evidence:
+      "Public reviews describe Akara as a West African restaurant from Akoko founder Aji Akokomi, with Nigerian-linked dishes such as akara and Lagos chicken.",
+    notes:
+      "Included because its food is strongly Nigerian-adjacent, though it is positioned as broader West African.",
+  },
 ];
 
 const confirmedCount = restaurants.filter(
   (restaurant) => restaurant.status === "Confirmed",
 ).length;
-const likelyCount = restaurants.filter(
-  (restaurant) => restaurant.status === "Likely",
-).length;
 const townsCount = new Set(restaurants.map((restaurant) => restaurant.town))
+  .size;
+const regionsCount = new Set(restaurants.map((restaurant) => restaurant.region))
   .size;
 
 export default function KentRestaurantsDirectory() {
   const [openRestaurantId, setOpenRestaurantId] = useState<string | null>(null);
+  const [regionFilter, setRegionFilter] = useState<RegionFilter>("All");
+  const [townFilter, setTownFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [sortMode, setSortMode] = useState<SortMode>("default");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
+  const [distanceOriginLabel, setDistanceOriginLabel] = useState<string | null>(
+    null,
+  );
   const [isLocating, setIsLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [addressQuery, setAddressQuery] = useState("");
+  const [addressError, setAddressError] = useState<string | null>(null);
+  const [isGeocodingAddress, setIsGeocodingAddress] = useState(false);
   const [installPrompt, setInstallPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [showInstallHint, setShowInstallHint] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const [hasHydratedFilters, setHasHydratedFilters] = useState(false);
+  const [isRefineOpen, setIsRefineOpen] = useState(false);
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -362,7 +748,7 @@ export default function KentRestaurantsDirectory() {
       window.matchMedia("(display-mode: standalone)").matches ||
         Boolean(
           "standalone" in navigator &&
-          (navigator as Navigator & { standalone?: boolean }).standalone,
+            (navigator as Navigator & { standalone?: boolean }).standalone,
         ),
     );
 
@@ -390,9 +776,85 @@ export default function KentRestaurantsDirectory() {
     };
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const region = params.get("region");
+    const town = params.get("area");
+    const status = params.get("status");
+    const view = params.get("view");
+    const sort = params.get("sort");
+
+    if (isRegionFilter(region)) {
+      setRegionFilter(region);
+    }
+
+    if (town) {
+      setTownFilter(town);
+    }
+
+    if (isStatusFilter(status)) {
+      setStatusFilter(status);
+    }
+
+    if (isViewMode(view)) {
+      setViewMode(view);
+    }
+
+    if (isSortMode(sort)) {
+      setSortMode(sort);
+    }
+
+    setHasHydratedFilters(true);
+  }, []);
+
+  const townFilters = useMemo(() => {
+    const towns = restaurants
+      .filter((restaurant) => {
+        return regionFilter === "All" || restaurant.region === regionFilter;
+      })
+      .map((restaurant) => restaurant.town);
+
+    return ["All", ...Array.from(new Set(towns)).sort()];
+  }, [regionFilter]);
+
+  const townOptions = useMemo(() => {
+    return townFilters.map((filter) => ({
+      label: filter === "All" ? "All Areas" : filter,
+      value: filter,
+    }));
+  }, [townFilters]);
+
+  const { contains } = useFilter({ sensitivity: "base" });
+  const {
+    collection: townCollection,
+    filter: filterTownCollection,
+    reset: resetTownCollection,
+    set: setTownCollection,
+  } = useListCollection({
+    filter: contains,
+    initialItems: townOptions,
+  });
+
+  useEffect(() => {
+    setTownCollection(townOptions);
+  }, [setTownCollection, townOptions]);
+
+  useEffect(() => {
+    if (!townFilters.includes(townFilter)) {
+      setTownFilter("All");
+    }
+  }, [townFilter, townFilters]);
+
   const visibleRestaurants = useMemo(() => {
     const filteredRestaurants = restaurants.filter((restaurant) => {
-      return statusFilter === "All" || restaurant.status === statusFilter;
+      const matchesRegion =
+        regionFilter === "All" || restaurant.region === regionFilter;
+      const matchesTown =
+        townFilter === "All" || restaurant.town === townFilter;
+      const matchesStatus =
+        statusFilter === "All" || restaurant.status === statusFilter;
+
+      return matchesRegion && matchesTown && matchesStatus;
     });
 
     const withDistance = filteredRestaurants.map((restaurant) => ({
@@ -409,7 +871,49 @@ export default function KentRestaurantsDirectory() {
     return [...withDistance].sort((first, second) => {
       return (first.distanceMiles ?? 0) - (second.distanceMiles ?? 0);
     });
-  }, [sortMode, statusFilter, userLocation]);
+  }, [regionFilter, sortMode, statusFilter, townFilter, userLocation]);
+
+  useEffect(() => {
+    if (!hasHydratedFilters) {
+      return;
+    }
+
+    const params = new URLSearchParams();
+
+    if (regionFilter !== "All") {
+      params.set("region", regionFilter);
+    }
+
+    if (townFilter !== "All") {
+      params.set("area", townFilter);
+    }
+
+    if (statusFilter !== "All") {
+      params.set("status", statusFilter);
+    }
+
+    if (viewMode !== "list") {
+      params.set("view", viewMode);
+    }
+
+    if (sortMode !== "default") {
+      params.set("sort", sortMode);
+    }
+
+    const query = params.toString();
+    const nextUrl = query
+      ? `${window.location.pathname}?${query}`
+      : window.location.pathname;
+
+    window.history.replaceState(null, "", nextUrl);
+  }, [
+    hasHydratedFilters,
+    regionFilter,
+    sortMode,
+    statusFilter,
+    townFilter,
+    viewMode,
+  ]);
 
   const requestCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -426,6 +930,8 @@ export default function KentRestaurantsDirectory() {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
         });
+        setDistanceOriginLabel("your current location");
+        setAddressError(null);
         setSortMode("distance");
         setIsLocating(false);
       },
@@ -439,6 +945,58 @@ export default function KentRestaurantsDirectory() {
       },
       { enableHighAccuracy: true, maximumAge: 60_000, timeout: 10_000 },
     );
+  };
+
+  const handleAddressSearch = async (event: FormEvent) => {
+    event.preventDefault();
+
+    const trimmedAddress = addressQuery.trim();
+
+    if (trimmedAddress.length < 3) {
+      setAddressError("Enter a more specific address.");
+      return;
+    }
+
+    setIsGeocodingAddress(true);
+    setAddressError(null);
+
+    try {
+      const searchParams = new URLSearchParams({
+        addressdetails: "1",
+        countrycodes: "gb",
+        format: "jsonv2",
+        limit: "1",
+        q: trimmedAddress,
+      });
+      const response = await fetch(`${nominatimSearchUrl}?${searchParams}`);
+
+      if (!response.ok) {
+        throw new Error("Address search failed.");
+      }
+
+      const results = (await response.json()) as NominatimSearchResult[];
+      const result = results[0];
+      const latitude = Number(result?.lat);
+      const longitude = Number(result?.lon);
+
+      if (
+        !result ||
+        !Number.isFinite(latitude) ||
+        !Number.isFinite(longitude)
+      ) {
+        setAddressError("Could not find that address. Try adding the town.");
+        return;
+      }
+
+      setUserLocation({ latitude, longitude });
+      setDistanceOriginLabel(getShortAddressLabel(result, trimmedAddress));
+      setLocationError(null);
+      setSortMode("distance");
+    } catch {
+      setAddressError("Could not search that address. Try again in a moment.");
+    } finally {
+      setIsGeocodingAddress(false);
+    }
   };
 
   const handleInstallApp = async () => {
@@ -457,25 +1015,16 @@ export default function KentRestaurantsDirectory() {
 
   return (
     <Box
-      bg="#f6f1e8"
+      bg={colors.bg}
+      color={colors.ink}
       minH="100vh"
       overflowX="hidden"
       pb={{ base: isStandalone ? 6 : 28, md: 10 }}
       pt={{ base: 4, md: 8 }}
     >
-      <Box
-        aria-hidden="true"
-        bg="radial-gradient(circle at 10% 10%, rgba(218, 124, 70, 0.22), transparent 34%), radial-gradient(circle at 92% 4%, rgba(28, 86, 71, 0.18), transparent 30%)"
-        h="360px"
-        left={0}
-        pointerEvents="none"
-        position="fixed"
-        right={0}
-        top={0}
-      />
       <Link
-        bg="#f3b35c"
-        color="#1f2a24"
+        bg={colors.accent}
+        color="white"
         fontWeight="bold"
         href="#directory-content"
         left={4}
@@ -498,148 +1047,89 @@ export default function KentRestaurantsDirectory() {
         <Stack gap={{ base: 5, md: 7 }}>
           <Box
             as="header"
-            bg="#1f2a24"
-            borderColor="rgba(255, 255, 255, 0.16)"
+            bg={colors.panel}
+            borderColor={colors.border}
             borderWidth="1px"
-            color="white"
             overflow="hidden"
             p={{ base: 5, md: 8 }}
             position="relative"
             rounded={{ base: "xl", md: "2xl" }}
           >
-            <Box
-              aria-hidden="true"
-              bottom="-80px"
-              h="220px"
-              position="absolute"
-              right="-44px"
-              rounded="full"
-              style={{
-                background:
-                  "conic-gradient(from 180deg, rgba(237, 179, 91, 0.42), rgba(223, 100, 70, 0.24), rgba(117, 148, 93, 0.32), rgba(237, 179, 91, 0.42))",
-              }}
-              w="220px"
-            />
             <Stack gap={5} maxW="4xl" position="relative">
-              <Flex gap={3} wrap="wrap">
-                <Badge colorPalette="orange" rounded="full" size="lg">
-                  📍 Kent Guide
-                </Badge>
-                <Badge colorPalette="green" rounded="full" size="lg">
-                  ✅ Last checked: 12 June 2026
-                </Badge>
+              <Flex align="center" gap={3} justify="space-between" wrap="wrap">
+                <Text
+                  color={colors.accent}
+                  fontSize={{ base: "lg", md: "xl" }}
+                  fontWeight="black"
+                  letterSpacing="0"
+                >
+                  naij
+                </Text>
+                <Flex gap={2} wrap="wrap">
+                  <Badge
+                    bg={colors.accentSoft}
+                    color={colors.accent}
+                    rounded="full"
+                    size="lg"
+                  >
+                    📍 England Guide
+                  </Badge>
+                  <Badge
+                    bg="#f3efe7"
+                    color={colors.ink}
+                    rounded="full"
+                    size="lg"
+                  >
+                    ✅ Kent + London live
+                  </Badge>
+                </Flex>
               </Flex>
               <Stack gap={3}>
                 <Heading
                   as="h1"
-                  fontSize={{ base: "3xl", md: "5xl" }}
+                  fontSize={{ base: "2xl", md: "4xl" }}
                   fontWeight="black"
-                  lineHeight="1"
+                  lineHeight="1.08"
                   textWrap="balance"
                 >
-                  Nigerian Restaurants in Kent
+                  Nigerian Restaurants in England
                 </Heading>
                 <Text
-                  color="whiteAlpha.800"
-                  fontSize={{ base: "md", md: "xl" }}
+                  color={colors.muted}
+                  fontSize={{ base: "sm", md: "lg" }}
                   maxW="3xl"
                   textWrap="pretty"
                 >
-                  Confirmed Nigerian restaurants, likely West African spots, and
-                  candidates worth checking before you set off.
+                  Starting with Kent and London: confirmed Nigerian restaurants,
+                  likely West African spots, and candidates worth checking
+                  before you set off.
                 </Text>
               </Stack>
             </Stack>
           </Box>
 
-          <SimpleGrid columns={{ base: 2, md: 5 }} gap={3}>
-            <SummaryStat
-              icon="🍽️"
-              label="Kent listings"
-              value={restaurants.length}
-            />
-            <SummaryStat
-              icon="👀"
-              label="Showing"
-              value={visibleRestaurants.length}
-            />
-            <SummaryStat icon="✅" label="Confirmed" value={confirmedCount} />
-            <SummaryStat icon="🟡" label="Likely" value={likelyCount} />
-            <SummaryStat icon="🗺️" label="Towns covered" value={townsCount} />
-          </SimpleGrid>
-
           <Box
             as="section"
-            bg="rgba(255, 252, 246, 0.96)"
-            borderColor="#e7ddce"
+            bg={colors.panel}
+            borderColor={colors.border}
             borderWidth="1px"
             p={{ base: 4, md: 5 }}
-            position={{ base: "static", lg: "sticky" }}
             rounded="xl"
-            top={4}
-            zIndex={1}
           >
-            <Stack gap={5}>
-              <Flex gap={4} justify="space-between" wrap="wrap">
-                <Stack gap={2}>
-                  <Text color="fg.muted" fontSize="sm" fontWeight="medium">
-                    ✅ Filter by confidence
-                  </Text>
-                  <Flex gap={2} wrap="wrap">
-                    {statusFilters.map((filter) => (
-                      <Button
-                        colorPalette={filter === "All" ? "gray" : "green"}
-                        key={filter}
-                        onClick={() => {
-                          setStatusFilter(filter);
-                          setOpenRestaurantId(null);
-                        }}
-                        rounded="full"
-                        size="xs"
-                        variant={statusFilter === filter ? "solid" : "outline"}
-                      >
-                        {getStatusFilterLabel(filter)}
-                      </Button>
-                    ))}
-                  </Flex>
-                </Stack>
-
-                <Stack gap={2}>
-                  <Text color="fg.muted" fontSize="sm" fontWeight="medium">
-                    👁️ View
-                  </Text>
-                  <Flex gap={2} wrap="wrap">
-                    <Button
-                      colorPalette="green"
-                      onClick={() => setViewMode("list")}
-                      rounded="full"
-                      size="xs"
-                      variant={viewMode === "list" ? "solid" : "outline"}
-                    >
-                      📋 List
-                    </Button>
-                    <Button
-                      colorPalette="green"
-                      onClick={() => setViewMode("map")}
-                      rounded="full"
-                      size="xs"
-                      variant={viewMode === "map" ? "solid" : "outline"}
-                    >
-                      🗺️ Map
-                    </Button>
-                  </Flex>
-                </Stack>
-              </Flex>
-
-              <Flex gap={3} justify="space-between" wrap="wrap">
-                <Stack gap={1}>
-                  <Text color="fg.muted" fontSize="sm" fontWeight="medium">
-                    📍 Distance
-                  </Text>
-                  <Text color="fg.muted" fontSize="sm">
+            <Stack gap={4}>
+              <Flex align="center" gap={4} justify="space-between" wrap="wrap">
+                <Stack gap={1} minW={0}>
+                  <Heading as="h2" fontSize={{ base: "lg", md: "xl" }}>
+                    Restaurants Near You
+                  </Heading>
+                  <Text color={colors.muted} fontSize="sm" textWrap="pretty">
+                    Showing {visibleRestaurants.length} of {restaurants.length}{" "}
+                    listings.{" "}
                     {userLocation
-                      ? "Sorting can use your current location."
-                      : "Use current location to sort nearest first."}
+                      ? `Sorting can use ${
+                          distanceOriginLabel ?? "your selected location"
+                        } as the starting point.`
+                      : "Use your location or enter an address to bring nearby places to the top."}
                   </Text>
                   {locationError ? (
                     <Text aria-live="polite" color="red.fg" fontSize="sm">
@@ -648,39 +1138,373 @@ export default function KentRestaurantsDirectory() {
                   ) : null}
                 </Stack>
 
-                <Flex align="flex-end" gap={2} wrap="wrap">
+                <Flex align="center" gap={2} wrap="wrap">
                   <Button
-                    colorPalette="green"
+                    bg={userLocation ? colors.accentSoft : colors.accent}
+                    borderColor={userLocation ? colors.border : colors.accent}
+                    borderWidth="1px"
+                    color={userLocation ? colors.accent : "white"}
                     loading={isLocating}
                     onClick={requestCurrentLocation}
                     rounded="full"
                     size="sm"
-                    variant="outline"
+                    variant="solid"
+                    _focusVisible={{
+                      outline: "2px solid",
+                      outlineColor: colors.accent,
+                      outlineOffset: "2px",
+                    }}
+                    _hover={{
+                      bg: userLocation ? "#e2ece5" : "#1d382f",
+                    }}
                   >
-                    📍 Use Current Location
+                    📍 {userLocation ? "Update Location" : "Use Location"}
                   </Button>
-                  <Button
-                    colorPalette="green"
-                    disabled={!userLocation}
-                    onClick={() => setSortMode("distance")}
-                    rounded="full"
+                  <FilterPill
+                    active={viewMode === "list"}
+                    onClick={() => setViewMode("list")}
                     size="sm"
-                    variant={sortMode === "distance" ? "solid" : "outline"}
                   >
-                    🧭 Nearest First
-                  </Button>
-                  <Button
-                    onClick={() => setSortMode("default")}
-                    rounded="full"
+                    📋 List
+                  </FilterPill>
+                  <FilterPill
+                    active={viewMode === "map"}
+                    onClick={() => setViewMode("map")}
                     size="sm"
-                    variant={sortMode === "default" ? "solid" : "outline"}
                   >
-                    ↩️ Default Order
-                  </Button>
+                    🗺️ Map
+                  </FilterPill>
+                  <FilterPill
+                    active={isRefineOpen}
+                    onClick={() => setIsRefineOpen((isOpen) => !isOpen)}
+                    size="sm"
+                  >
+                    {isRefineOpen ? "Hide Filters" : "Refine"}
+                  </FilterPill>
                 </Flex>
               </Flex>
+
+              <Box
+                as="form"
+                borderColor={colors.borderMuted}
+                borderTopWidth="1px"
+                onSubmit={handleAddressSearch}
+                pt={4}
+              >
+                <Flex
+                  align={{ base: "stretch", md: "flex-end" }}
+                  gap={3}
+                  wrap="wrap"
+                >
+                  <Stack
+                    as="label"
+                    cursor="text"
+                    flex="1"
+                    gap={1}
+                    minW={{ base: "100%", md: "300px" }}
+                  >
+                    <Text
+                      color={colors.muted}
+                      fontSize="sm"
+                      fontWeight="medium"
+                    >
+                      Sort From Address
+                    </Text>
+                    <Input
+                      autoComplete="street-address"
+                      bg="#fdfaf4"
+                      borderColor={colors.border}
+                      borderWidth="1px"
+                      color={colors.ink}
+                      id="address-origin"
+                      name="address-origin"
+                      onChange={(event) => setAddressQuery(event.target.value)}
+                      placeholder="Santander, Cheapside, London"
+                      rounded="full"
+                      value={addressQuery}
+                      _focusVisible={{
+                        borderColor: colors.accent,
+                        outline: "2px solid",
+                        outlineColor: colors.accentSoft,
+                      }}
+                      _placeholder={{ color: colors.muted }}
+                    />
+                  </Stack>
+
+                  <Button
+                    bg={colors.accent}
+                    borderColor={colors.accent}
+                    borderWidth="1px"
+                    color="white"
+                    loading={isGeocodingAddress}
+                    minW={{ base: "100%", sm: "auto" }}
+                    rounded="full"
+                    type="submit"
+                    _focusVisible={{
+                      outline: "2px solid",
+                      outlineColor: colors.accent,
+                      outlineOffset: "2px",
+                    }}
+                    _hover={{ bg: "#1d382f" }}
+                  >
+                    Sort Nearby
+                  </Button>
+                </Flex>
+                <Text
+                  aria-live="polite"
+                  color={addressError ? "red.fg" : colors.muted}
+                  fontSize="sm"
+                  mt={2}
+                >
+                  {addressError ??
+                    (distanceOriginLabel
+                      ? `Distance is measured from ${distanceOriginLabel}.`
+                      : "Address search uses OpenStreetMap.")}
+                </Text>
+              </Box>
             </Stack>
           </Box>
+
+          {isRefineOpen ? (
+            <Box
+              as="section"
+              bg={colors.panel}
+              borderColor={colors.border}
+              borderWidth="1px"
+              p={{ base: 4, md: 5 }}
+              rounded="xl"
+            >
+              <Stack gap={4}>
+                <Flex
+                  align="flex-start"
+                  gap={3}
+                  justify="space-between"
+                  wrap="wrap"
+                >
+                  <Stack gap={2}>
+                    <Heading as="h2" fontSize="lg">
+                      Refine Results
+                    </Heading>
+                    <Text color={colors.muted} fontSize="sm">
+                      {visibleRestaurants.length} places shown
+                      {regionFilter !== "All" ? ` in ${regionFilter}` : ""}
+                      {townFilter !== "All" ? `, ${townFilter}` : ""}.
+                    </Text>
+                  </Stack>
+
+                  <Button
+                    bg="transparent"
+                    borderColor={colors.border}
+                    borderWidth="1px"
+                    color={colors.ink}
+                    onClick={() => setIsRefineOpen(false)}
+                    rounded="full"
+                    size="sm"
+                    variant="outline"
+                    _focusVisible={{
+                      outline: "2px solid",
+                      outlineColor: colors.accent,
+                      outlineOffset: "2px",
+                    }}
+                    _hover={{ bg: "#f4f0e8" }}
+                  >
+                    Close
+                  </Button>
+                </Flex>
+
+                <SimpleGrid columns={{ base: 1, md: 3 }} gap={4}>
+                  <Stack gap={2}>
+                    <Text
+                      color={colors.muted}
+                      fontSize="sm"
+                      fontWeight="medium"
+                    >
+                      Region
+                    </Text>
+                    <Flex
+                      bg="#f4f0e8"
+                      borderColor={colors.borderMuted}
+                      borderWidth="1px"
+                      gap={1}
+                      p={1}
+                      rounded="full"
+                      w="fit-content"
+                    >
+                      {regionFilters.map((filter) => (
+                        <FilterPill
+                          active={regionFilter === filter}
+                          key={filter}
+                          onClick={() => {
+                            setRegionFilter(filter);
+                            setTownFilter("All");
+                            setOpenRestaurantId(null);
+                          }}
+                        >
+                          {getRegionFilterLabel(filter)}
+                        </FilterPill>
+                      ))}
+                    </Flex>
+                  </Stack>
+
+                  <Stack gap={2}>
+                    <Text
+                      color={colors.muted}
+                      fontSize="sm"
+                      fontWeight="medium"
+                    >
+                      Confidence
+                    </Text>
+                    <Flex
+                      bg="#f4f0e8"
+                      borderColor={colors.borderMuted}
+                      borderWidth="1px"
+                      gap={1}
+                      overflowX="auto"
+                      p={1}
+                      rounded="full"
+                    >
+                      {statusFilters.map((filter) => (
+                        <FilterPill
+                          active={statusFilter === filter}
+                          flexShrink={0}
+                          key={filter}
+                          onClick={() => {
+                            setStatusFilter(filter);
+                            setOpenRestaurantId(null);
+                          }}
+                        >
+                          {getStatusFilterLabel(filter)}
+                        </FilterPill>
+                      ))}
+                    </Flex>
+                  </Stack>
+
+                  <Combobox.Root
+                    collection={townCollection}
+                    onInputValueChange={(details) => {
+                      filterTownCollection(details.inputValue);
+                    }}
+                    onOpenChange={(details) => {
+                      if (details.open) {
+                        resetTownCollection();
+                      }
+                    }}
+                    onValueChange={(details) => {
+                      setTownFilter(details.value[0] ?? "All");
+                      setOpenRestaurantId(null);
+                      resetTownCollection();
+                    }}
+                    openOnClick
+                    positioning={{ sameWidth: true }}
+                    value={[townFilter]}
+                  >
+                    <Combobox.Label
+                      color={colors.muted}
+                      fontSize="sm"
+                      fontWeight="medium"
+                    >
+                      Area
+                    </Combobox.Label>
+                    <Combobox.Control
+                      bg="#fdfaf4"
+                      borderColor={colors.border}
+                      borderRadius="full"
+                      borderWidth="1px"
+                      maxW={{ base: "100%", md: "260px" }}
+                      minH="38px"
+                      mt={2}
+                      overflow="hidden"
+                      _focusVisible={{
+                        borderColor: colors.accent,
+                        outline: "2px solid",
+                        outlineColor: colors.accentSoft,
+                      }}
+                    >
+                      <Combobox.Input
+                        color={colors.ink}
+                        placeholder="Search areas"
+                        px={4}
+                        _placeholder={{ color: colors.muted }}
+                      />
+                      <Combobox.IndicatorGroup pr={2}>
+                        <Combobox.ClearTrigger color={colors.muted} />
+                        <Combobox.Trigger color={colors.muted} />
+                      </Combobox.IndicatorGroup>
+                    </Combobox.Control>
+                    <Combobox.Positioner>
+                      <Combobox.Content
+                        bg={colors.panel}
+                        borderColor={colors.border}
+                        borderRadius="xl"
+                        borderWidth="1px"
+                        maxH="280px"
+                        overflowY="auto"
+                        py={1}
+                      >
+                        <Combobox.Empty color={colors.muted} px={4} py={3}>
+                          No areas found.
+                        </Combobox.Empty>
+                        {townCollection.items.map((item) => (
+                          <Combobox.Item
+                            _highlighted={{ bg: colors.accentSoft }}
+                            _selected={{ bg: "#f4f0e8" }}
+                            item={item}
+                            key={item.value}
+                          >
+                            <Combobox.ItemText>{item.label}</Combobox.ItemText>
+                            <Combobox.ItemIndicator color={colors.accent}>
+                              ✓
+                            </Combobox.ItemIndicator>
+                          </Combobox.Item>
+                        ))}
+                      </Combobox.Content>
+                    </Combobox.Positioner>
+                  </Combobox.Root>
+                </SimpleGrid>
+
+                <Box
+                  borderColor={colors.borderMuted}
+                  borderTopWidth="1px"
+                  pt={4}
+                >
+                  <Flex gap={3} justify="space-between" wrap="wrap">
+                    <Stack gap={1}>
+                      <Text
+                        color={colors.muted}
+                        fontSize="sm"
+                        fontWeight="medium"
+                      >
+                        Distance
+                      </Text>
+                      <Text color={colors.muted} fontSize="sm">
+                        {userLocation
+                          ? "Nearest-first sorting is ready."
+                          : "Use Location above, then sort nearest first."}
+                      </Text>
+                    </Stack>
+
+                    <Flex align="flex-end" gap={2} wrap="wrap">
+                      <FilterPill
+                        active={sortMode === "distance"}
+                        disabled={!userLocation}
+                        onClick={() => setSortMode("distance")}
+                        size="sm"
+                      >
+                        Nearest First
+                      </FilterPill>
+                      <FilterPill
+                        active={sortMode === "default"}
+                        onClick={() => setSortMode("default")}
+                        size="sm"
+                      >
+                        Default
+                      </FilterPill>
+                    </Flex>
+                  </Flex>
+                </Box>
+              </Stack>
+            </Box>
+          ) : null}
 
           {viewMode === "map" ? (
             <MapView
@@ -699,8 +1523,74 @@ export default function KentRestaurantsDirectory() {
 
           <Box
             as="section"
-            bg="rgba(255, 252, 246, 0.96)"
-            borderColor="#e7ddce"
+            bg={colors.panel}
+            borderColor={colors.border}
+            borderWidth="1px"
+            p={{ base: 4, md: 5 }}
+            rounded="xl"
+          >
+            <Stack gap={4}>
+              <Flex align="center" gap={3} justify="space-between" wrap="wrap">
+                <Stack gap={1}>
+                  <Heading as="h2" fontSize="lg">
+                    Directory Insights
+                  </Heading>
+                  <Text color={colors.muted} fontSize="sm">
+                    Optional snapshot for coverage and confidence.
+                  </Text>
+                </Stack>
+                <Button
+                  bg="transparent"
+                  borderColor={colors.border}
+                  borderWidth="1px"
+                  color={colors.ink}
+                  onClick={() => setIsAnalyticsOpen((isOpen) => !isOpen)}
+                  rounded="full"
+                  size="sm"
+                  variant="outline"
+                  _focusVisible={{
+                    outline: "2px solid",
+                    outlineColor: colors.accent,
+                    outlineOffset: "2px",
+                  }}
+                  _hover={{ bg: "#f4f0e8" }}
+                >
+                  {isAnalyticsOpen ? "Hide Insights" : "Show Insights"}
+                </Button>
+              </Flex>
+
+              {isAnalyticsOpen ? (
+                <SimpleGrid columns={{ base: 2, md: 5 }} gap={3}>
+                  <SummaryStat
+                    icon="🍽️"
+                    label="Total listings"
+                    value={restaurants.length}
+                  />
+                  <SummaryStat
+                    icon="👀"
+                    label="Showing"
+                    value={visibleRestaurants.length}
+                  />
+                  <SummaryStat
+                    icon="✅"
+                    label="Confirmed"
+                    value={confirmedCount}
+                  />
+                  <SummaryStat icon="🗺️" label="Regions" value={regionsCount} />
+                  <SummaryStat
+                    icon="🏙️"
+                    label="Areas covered"
+                    value={townsCount}
+                  />
+                </SimpleGrid>
+              ) : null}
+            </Stack>
+          </Box>
+
+          <Box
+            as="section"
+            bg={colors.panel}
+            borderColor={colors.border}
             borderWidth="1px"
             p={{ base: 4, md: 5 }}
             rounded="xl"
@@ -709,21 +1599,22 @@ export default function KentRestaurantsDirectory() {
               <Heading as="h2" size="md">
                 Research Notes
               </Heading>
-              <Text color="fg.muted">
+              <Text color={colors.muted}>
                 Sources checked included Bing Maps local listings, restaurant
-                websites, and town-by-town Nigerian/African restaurant searches
-                across Kent. Ratings are public directory snapshots rather than
+                websites, official location pages, postcodes.io coordinates, and
+                area-by-area Nigerian/African restaurant searches across Kent
+                and London. Ratings are public directory snapshots rather than
                 live API data.
               </Text>
-              <Text color="fg.muted">
+              <Text color={colors.muted}>
                 Map pins use postcode-level coordinates from postcodes.io, so
                 they are suitable for sorting and area context but may not mark
                 the exact front door.
               </Text>
-              <Text color="fg.muted">
+              <Text color={colors.muted}>
                 Excluded false positives included seafood, Indian, Pan-Asian,
                 Modern European, Ghanaian-only, and Sierra Leonean-only results,
-                plus nearby places outside current Kent.
+                plus nearby places outside the current Kent and London coverage.
               </Text>
             </Stack>
           </Box>
@@ -767,7 +1658,7 @@ function InstallAppButton({
       zIndex={10}
     >
       <Box
-        bg="#1f2a24"
+        bg={colors.ink}
         borderColor="rgba(255, 255, 255, 0.16)"
         borderWidth="1px"
         color="white"
@@ -807,15 +1698,15 @@ function InstallAppButton({
           <Flex align="center" gap={3} justify="space-between">
             <Stack gap={0} minW={0}>
               <Text fontSize="sm" fontWeight="bold">
-                Keep this Kent guide handy
+                Keep this guide handy
               </Text>
               <Text aria-live="polite" color="whiteAlpha.700" fontSize="xs">
                 📲 Install it on your phone for quick access.
               </Text>
             </Stack>
             <Button
-              bg="#f3b35c"
-              color="#1f2a24"
+              bg="#f3efe7"
+              color={colors.ink}
               minH="44px"
               onClick={onInstall}
               rounded="full"
@@ -828,6 +1719,53 @@ function InstallAppButton({
         )}
       </Box>
     </Box>
+  );
+}
+
+function FilterPill({
+  active,
+  children,
+  disabled,
+  flexShrink,
+  onClick,
+  size = "xs",
+}: {
+  active: boolean;
+  children: ReactNode;
+  disabled?: boolean;
+  flexShrink?: number;
+  onClick: () => void;
+  size?: "xs" | "sm";
+}) {
+  return (
+    <Button
+      bg={active ? colors.accent : "transparent"}
+      borderColor={active ? colors.accent : "transparent"}
+      borderWidth="1px"
+      color={active ? "white" : colors.ink}
+      disabled={disabled}
+      flexShrink={flexShrink}
+      fontWeight="medium"
+      onClick={onClick}
+      rounded="full"
+      size={size}
+      variant="ghost"
+      _disabled={{
+        color: colors.muted,
+        cursor: "not-allowed",
+        opacity: 0.55,
+      }}
+      _hover={{
+        bg: active ? colors.accent : colors.panel,
+      }}
+      _focusVisible={{
+        outline: "2px solid",
+        outlineColor: colors.accent,
+        outlineOffset: "2px",
+      }}
+    >
+      {children}
+    </Button>
   );
 }
 
@@ -847,21 +1785,25 @@ function DirectoryList({
           📋 Directory
         </Heading>
         <Stack gap={3}>
-          {visibleRestaurants.map(({ distanceMiles, restaurant }) => {
-            const isOpen = openRestaurantId === restaurant.id;
+          {visibleRestaurants.length > 0 ? (
+            visibleRestaurants.map(({ distanceMiles, restaurant }) => {
+              const isOpen = openRestaurantId === restaurant.id;
 
-            return (
-              <RestaurantRow
-                distanceMiles={distanceMiles}
-                isOpen={isOpen}
-                key={restaurant.id}
-                onToggle={() =>
-                  setOpenRestaurantId(isOpen ? null : restaurant.id)
-                }
-                restaurant={restaurant}
-              />
-            );
-          })}
+              return (
+                <RestaurantRow
+                  distanceMiles={distanceMiles}
+                  isOpen={isOpen}
+                  key={restaurant.id}
+                  onToggle={() =>
+                    setOpenRestaurantId(isOpen ? null : restaurant.id)
+                  }
+                  restaurant={restaurant}
+                />
+              );
+            })
+          ) : (
+            <EmptyState />
+          )}
         </Stack>
       </Stack>
     </Box>
@@ -893,37 +1835,50 @@ function MapView({
           <Heading as="h2" size="lg">
             🗺️ Map View
           </Heading>
-          <Text color="fg.muted" fontSize="sm">
+          <Text color={colors.muted} fontSize="sm">
             Select a pin to inspect the listing.
           </Text>
         </Flex>
 
-        <MapPlot
-          activeRestaurantId={activeRestaurant?.restaurant.id ?? null}
-          restaurants={visibleRestaurants}
-          setOpenRestaurantId={setOpenRestaurantId}
-          userLocation={userLocation}
-        />
+        {visibleRestaurants.length > 0 ? (
+          <>
+            <MapPlot
+              activeRestaurantId={activeRestaurant?.restaurant.id ?? null}
+              restaurants={visibleRestaurants}
+              setOpenRestaurantId={setOpenRestaurantId}
+              userLocation={userLocation}
+            />
 
-        {activeRestaurant ? (
-          <RestaurantRow
-            distanceMiles={activeRestaurant.distanceMiles}
-            isOpen
-            onToggle={() => setOpenRestaurantId(null)}
-            restaurant={activeRestaurant.restaurant}
-          />
+            {activeRestaurant ? (
+              <RestaurantRow
+                distanceMiles={activeRestaurant.distanceMiles}
+                isOpen
+                onToggle={() => setOpenRestaurantId(null)}
+                restaurant={activeRestaurant.restaurant}
+              />
+            ) : null}
+          </>
         ) : (
-          <Box
-            bg="rgba(255, 252, 246, 0.98)"
-            borderColor="#e7ddce"
-            borderWidth="1px"
-            p={5}
-            rounded="xl"
-          >
-            <Text color="fg.muted">No restaurants match this filter.</Text>
-          </Box>
+          <EmptyState />
         )}
       </Stack>
+    </Box>
+  );
+}
+
+function EmptyState() {
+  return (
+    <Box
+      bg={colors.panel}
+      borderColor={colors.border}
+      borderWidth="1px"
+      p={5}
+      rounded="xl"
+    >
+      <Text color={colors.muted}>
+        No restaurants match these filters. Try another region, area, or
+        confidence level.
+      </Text>
     </Box>
   );
 }
@@ -944,89 +1899,131 @@ function MapPlot({
     ...(userLocation ? [userLocation] : []),
   ];
 
-  const bounds = getBounds(coordinates);
+  const bounds = getPaddedBounds(getBounds(coordinates));
+  const mapUrl = getOpenStreetMapUrl(bounds);
 
   return (
     <Box
-      bg="rgba(255, 252, 246, 0.98)"
-      borderColor="#e7ddce"
+      bg={colors.panel}
+      borderColor={colors.border}
       borderWidth="1px"
       minH={{ base: "420px", md: "520px" }}
       overflow="hidden"
       position="relative"
       rounded="xl"
     >
-      <Box
-        inset={0}
-        opacity={0.8}
-        position="absolute"
+      <iframe
+        aria-label="OpenStreetMap view of restaurant locations"
+        loading="lazy"
+        src={mapUrl}
         style={{
-          background:
-            "linear-gradient(135deg, rgba(47, 133, 90, 0.18), rgba(49, 130, 206, 0.12)), repeating-linear-gradient(0deg, transparent, transparent 47px, rgba(113, 128, 150, 0.2) 48px), repeating-linear-gradient(90deg, transparent, transparent 47px, rgba(113, 128, 150, 0.2) 48px)",
+          border: 0,
+          height: "100%",
+          inset: 0,
+          pointerEvents: "none",
+          position: "absolute",
+          width: "100%",
         }}
+        tabIndex={-1}
+        title="Restaurant map"
       />
 
       <Box
-        bottom={4}
-        color="fg.muted"
-        fontSize="sm"
-        left={4}
+        bg="rgba(255, 253, 248, 0.86)"
+        borderColor={colors.border}
+        borderWidth="1px"
+        color={colors.ink}
+        fontSize="xs"
+        fontWeight="medium"
+        left={3}
+        px={3}
+        py={1}
         position="absolute"
+        rounded="full"
+        top={3}
+        zIndex={1}
       >
-        West Kent
-      </Box>
-      <Box color="fg.muted" fontSize="sm" position="absolute" right={4} top={4}>
-        East Kent
+        OpenStreetMap
       </Box>
 
       {visibleRestaurants.map(({ restaurant }, index) => {
         const position = getMapPosition(restaurant.coordinates, bounds);
         const isActive = restaurant.id === activeRestaurantId;
+        const pinColor = getPinColor(restaurant.status);
 
         return (
           <Button
             aria-label={`Show ${restaurant.name}`}
-            bg={isActive ? "#1f6b4f" : "#fff9ef"}
-            borderColor={isActive ? "#1f6b4f" : "#8f806c"}
-            borderWidth="1px"
-            color={isActive ? "white" : "#1f2a24"}
-            fontSize="xs"
+            bg={isActive ? colors.ink : pinColor}
+            borderColor="white"
+            borderWidth="2px"
+            color="white"
+            fontSize="sm"
             fontWeight="bold"
-            h="32px"
+            h={isActive ? "46px" : "40px"}
             key={restaurant.id}
             left={`${position.x}%`}
-            lineHeight="28px"
+            lineHeight="1"
             onClick={() => setOpenRestaurantId(restaurant.id)}
+            p={0}
             position="absolute"
             rounded="full"
             textAlign="center"
             title={`${restaurant.name}, ${restaurant.town}`}
             top={`${position.y}%`}
-            transform="translate(-50%, -50%)"
+            transform="translate(-50%, -100%)"
             type="button"
-            w="32px"
+            w={isActive ? "46px" : "40px"}
+            zIndex={isActive ? 3 : 2}
+            _after={{
+              borderLeft: "7px solid transparent",
+              borderRight: "7px solid transparent",
+              borderTop: `10px solid ${isActive ? colors.ink : pinColor}`,
+              bottom: "-7px",
+              content: '""',
+              left: "50%",
+              position: "absolute",
+              transform: "translateX(-50%)",
+            }}
+            _hover={{
+              bg: colors.ink,
+              transform: "translate(-50%, -100%) scale(1.08)",
+            }}
+            _focusVisible={{
+              outline: "3px solid",
+              outlineColor: colors.accentSoft,
+              outlineOffset: "3px",
+            }}
           >
-            {index + 1}
+            <Stack align="center" gap={0}>
+              <Text aria-hidden="true" fontSize="sm" lineHeight="1">
+                🍽️
+              </Text>
+              <Text fontSize="10px" lineHeight="1">
+                {index + 1}
+              </Text>
+            </Stack>
           </Button>
         );
       })}
 
       {userLocation ? (
         <Box
-          bg="blue.solid"
-          color="blue.contrast"
+          bg={colors.ink}
+          color="white"
           fontSize="xs"
           fontWeight="bold"
-          h="34px"
+          h="40px"
           left={`${getMapPosition(userLocation, bounds).x}%`}
-          lineHeight="34px"
+          lineHeight="40px"
           position="absolute"
           rounded="full"
           textAlign="center"
           title="Your current location"
           top={`${getMapPosition(userLocation, bounds).y}%`}
           transform="translate(-50%, -50%)"
-          w="34px"
+          w="40px"
+          zIndex={3}
         >
           You
         </Box>
@@ -1046,8 +2043,8 @@ function SummaryStat({
 }) {
   return (
     <Box
-      bg="rgba(255, 252, 246, 0.96)"
-      borderColor="#e7ddce"
+      bg={colors.panel}
+      borderColor={colors.border}
       borderWidth="1px"
       minH={{ base: "92px", md: "112px" }}
       p={{ base: 4, md: 5 }}
@@ -1055,12 +2052,12 @@ function SummaryStat({
     >
       <Flex align="center" gap={2}>
         <Text aria-hidden="true">{icon}</Text>
-        <Text color="fg.muted" fontSize="sm" fontWeight="medium">
+        <Text color={colors.muted} fontSize="sm" fontWeight="medium">
           {label}
         </Text>
       </Flex>
       <Text
-        color="#1f2a24"
+        color={colors.ink}
         fontSize={{ base: "2xl", md: "3xl" }}
         fontVariantNumeric="tabular-nums"
         fontWeight="black"
@@ -1087,8 +2084,8 @@ function RestaurantRow({
   return (
     <Box
       as="article"
-      bg="rgba(255, 252, 246, 0.98)"
-      borderColor={isOpen ? "#b8c8ad" : "#e7ddce"}
+      bg={colors.panel}
+      borderColor={isOpen ? colors.accent : colors.border}
       borderWidth="1px"
       p={{ base: 4, md: 5 }}
       rounded="xl"
@@ -1107,8 +2104,9 @@ function RestaurantRow({
               </Heading>
               <StatusBadge status={restaurant.status} />
             </Flex>
-            <Text color="fg.muted">
-              {restaurant.town} · {restaurant.rating ?? "Rating not published"}
+            <Text color={colors.muted}>
+              {restaurant.region} · {restaurant.town} ·{" "}
+              {restaurant.rating ?? "Rating not published"}
               {distanceMiles !== null
                 ? ` · ${formatDistance(distanceMiles)} away`
                 : ""}
@@ -1118,19 +2116,30 @@ function RestaurantRow({
           <Button
             aria-controls={detailsId}
             aria-expanded={isOpen}
-            colorPalette="green"
+            bg={isOpen ? colors.accent : "transparent"}
+            borderColor={isOpen ? colors.accent : colors.border}
+            borderWidth="1px"
+            color={isOpen ? "white" : colors.ink}
             onClick={onToggle}
             rounded="full"
             size="sm"
-            variant={isOpen ? "solid" : "outline"}
+            variant="ghost"
+            _hover={{
+              bg: isOpen ? colors.accent : "#f4f0e8",
+            }}
+            _focusVisible={{
+              outline: "2px solid",
+              outlineColor: colors.accent,
+              outlineOffset: "2px",
+            }}
           >
-            {isOpen ? "🙈 Hide" : "👁️ View"}
+            {isOpen ? "Hide" : "View"}
           </Button>
         </Flex>
 
         {isOpen ? (
           <Box
-            borderColor="border.subtle"
+            borderColor={colors.borderMuted}
             borderTopWidth="1px"
             id={detailsId}
             pt={5}
@@ -1138,6 +2147,8 @@ function RestaurantRow({
             <Stack gap={4}>
               <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
                 <Info label="Category" value={restaurant.category} />
+                <Info label="Region" value={restaurant.region} />
+                <Info label="Town / borough" value={restaurant.town} />
                 <Info label="Address" value={restaurant.address} />
                 <Info
                   label="Phone"
@@ -1155,7 +2166,7 @@ function RestaurantRow({
                   label="Distance"
                   value={
                     distanceMiles === null
-                      ? "Use current location to calculate"
+                      ? "Use location or enter an address to calculate"
                       : `${formatDistance(distanceMiles)} away`
                   }
                 />
@@ -1164,11 +2175,13 @@ function RestaurantRow({
                   value={
                     restaurant.website ? (
                       <Link
-                        colorPalette="green"
+                        color={colors.accent}
                         href={restaurant.website}
                         target="_blank"
+                        textDecoration="underline"
+                        textUnderlineOffset="3px"
                       >
-                        🌐 Visit website
+                        Visit website
                       </Link>
                     ) : (
                       "Not published"
@@ -1179,11 +2192,13 @@ function RestaurantRow({
                   label="Map"
                   value={
                     <Link
-                      colorPalette="green"
+                      color={colors.accent}
                       href={getMapUrl(restaurant)}
                       target="_blank"
+                      textDecoration="underline"
+                      textUnderlineOffset="3px"
                     >
-                      🗺️ Open in maps
+                      Open in maps
                     </Link>
                   }
                 />
@@ -1200,11 +2215,15 @@ function RestaurantRow({
 }
 
 function StatusBadge({ status }: { status: RestaurantStatus }) {
-  const colorPalette =
-    status === "Confirmed" ? "green" : status === "Likely" ? "yellow" : "gray";
-
   return (
-    <Badge colorPalette={colorPalette} rounded="full" size="sm">
+    <Badge
+      bg={status === "Confirmed" ? colors.accentSoft : "#f4f0e8"}
+      borderColor={colors.borderMuted}
+      borderWidth="1px"
+      color={status === "Confirmed" ? colors.accent : colors.ink}
+      rounded="full"
+      size="sm"
+    >
       {getStatusFilterLabel(status)}
     </Badge>
   );
@@ -1212,24 +2231,52 @@ function StatusBadge({ status }: { status: RestaurantStatus }) {
 
 function getStatusFilterLabel(status: StatusFilter) {
   if (status === "Confirmed") {
-    return "✅ Confirmed";
+    return "Confirmed";
   }
 
   if (status === "Likely") {
-    return "🟡 Likely";
+    return "Likely";
   }
 
   if (status === "Candidate") {
-    return "📝 Candidate";
+    return "Candidate";
   }
 
-  return "🍽️ All";
+  return "All";
+}
+
+function getRegionFilterLabel(region: RegionFilter) {
+  if (region === "Kent") {
+    return "Kent";
+  }
+
+  if (region === "London") {
+    return "London";
+  }
+
+  return "All";
+}
+
+function isRegionFilter(value: string | null): value is RegionFilter {
+  return regionFilters.includes(value as RegionFilter);
+}
+
+function isStatusFilter(value: string | null): value is StatusFilter {
+  return statusFilters.includes(value as StatusFilter);
+}
+
+function isViewMode(value: string | null): value is ViewMode {
+  return value === "list" || value === "map";
+}
+
+function isSortMode(value: string | null): value is SortMode {
+  return value === "default" || value === "distance";
 }
 
 function Info({ label, value }: { label: string; value: ReactNode }) {
   return (
     <Stack gap={1}>
-      <Text color="fg.muted" fontSize="sm" fontWeight="medium">
+      <Text color={colors.muted} fontSize="sm" fontWeight="medium">
         {label}
       </Text>
       <Text>{value}</Text>
@@ -1269,6 +2316,16 @@ function formatDistance(distanceMiles: number) {
   return `${Math.round(distanceMiles)} mi`;
 }
 
+function getShortAddressLabel(result: NominatimSearchResult, fallback: string) {
+  const displayName = result.display_name?.trim();
+
+  if (!displayName) {
+    return fallback;
+  }
+
+  return displayName.split(",").slice(0, 3).join(",").trim();
+}
+
 function getBounds(coordinates: Coordinates[]) {
   const latitudes = coordinates.map((coordinate) => coordinate.latitude);
   const longitudes = coordinates.map((coordinate) => coordinate.longitude);
@@ -1279,6 +2336,47 @@ function getBounds(coordinates: Coordinates[]) {
     minLatitude: Math.min(...latitudes),
     minLongitude: Math.min(...longitudes),
   };
+}
+
+function getPaddedBounds(bounds: ReturnType<typeof getBounds>) {
+  const latitudePadding =
+    (bounds.maxLatitude - bounds.minLatitude || 0.1) * 0.18;
+  const longitudePadding =
+    (bounds.maxLongitude - bounds.minLongitude || 0.1) * 0.18;
+
+  return {
+    maxLatitude: bounds.maxLatitude + latitudePadding,
+    maxLongitude: bounds.maxLongitude + longitudePadding,
+    minLatitude: bounds.minLatitude - latitudePadding,
+    minLongitude: bounds.minLongitude - longitudePadding,
+  };
+}
+
+function getOpenStreetMapUrl(bounds: ReturnType<typeof getBounds>) {
+  const bbox = [
+    bounds.minLongitude,
+    bounds.minLatitude,
+    bounds.maxLongitude,
+    bounds.maxLatitude,
+  ]
+    .map((value) => value.toFixed(6))
+    .join(",");
+
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(
+    bbox,
+  )}&layer=mapnik`;
+}
+
+function getPinColor(status: RestaurantStatus) {
+  if (status === "Confirmed") {
+    return colors.pin;
+  }
+
+  if (status === "Likely") {
+    return colors.likely;
+  }
+
+  return colors.candidate;
 }
 
 function getMapPosition(

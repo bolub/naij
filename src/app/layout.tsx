@@ -9,12 +9,12 @@ const monaSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Nigerian Restaurants in Kent",
+  title: "Nigerian Restaurants in England",
   description:
-    "A mobile-friendly guide to Nigerian and West African restaurants across Kent.",
+    "A mobile-friendly guide to Nigerian and West African restaurants across Kent and London.",
   appleWebApp: {
     capable: true,
-    title: "Kent Naija",
+    title: "Naija Food",
     statusBarStyle: "black-translucent",
   },
 };
