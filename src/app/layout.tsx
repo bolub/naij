@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import type { CSSProperties } from "react";
 import { Provider } from "@/components/ui/provider";
 
 const monaSans = localFont({
@@ -7,6 +8,12 @@ const monaSans = localFont({
   variable: "--font-mona-sans",
   display: "swap",
 });
+
+const fontVariables = {
+  "--chakra-fonts-body": "var(--font-mona-sans)",
+  "--chakra-fonts-heading": "var(--font-mona-sans)",
+  fontFamily: "var(--font-mona-sans)",
+} as CSSProperties;
 
 export const metadata: Metadata = {
   title: "Nigerian Restaurants in England",
@@ -34,7 +41,7 @@ export default function RootLayout({
       className={`${monaSans.variable} ${monaSans.className}`}
       suppressHydrationWarning
     >
-      <body>
+      <body style={fontVariables}>
         <Provider>{children}</Provider>
       </body>
     </html>

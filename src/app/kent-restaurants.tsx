@@ -8,6 +8,7 @@ import {
   Container,
   Flex,
   Heading,
+  Image,
   Input,
   Link,
   SimpleGrid,
@@ -78,6 +79,11 @@ type RestaurantWithDistance = {
   restaurant: Restaurant;
 };
 
+type RestaurantImage = {
+  alt: string;
+  src: string;
+};
+
 type NominatimSearchResult = {
   display_name?: string;
   lat?: string;
@@ -92,6 +98,24 @@ const statusFilters: StatusFilter[] = [
 ];
 const regionFilters: RegionFilter[] = ["All", "Kent", "London"];
 const nominatimSearchUrl = "https://nominatim.openstreetmap.org/search";
+const restaurantImages: RestaurantImage[] = [
+  {
+    alt: "A warm plate of jollof-style rice and sides",
+    src: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=640&q=80",
+  },
+  {
+    alt: "Grilled skewers and smoky restaurant food",
+    src: "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=640&q=80",
+  },
+  {
+    alt: "A generous table spread for sharing",
+    src: "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=640&q=80",
+  },
+  {
+    alt: "Colourful comfort food served in bowls",
+    src: "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=640&q=80",
+  },
+];
 
 const restaurants: Restaurant[] = [
   {
@@ -717,6 +741,7 @@ export default function KentRestaurantsDirectory() {
   const [regionFilter, setRegionFilter] = useState<RegionFilter>("All");
   const [townFilter, setTownFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
+  const [searchQuery, setSearchQuery] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("default");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
@@ -748,7 +773,7 @@ export default function KentRestaurantsDirectory() {
       window.matchMedia("(display-mode: standalone)").matches ||
         Boolean(
           "standalone" in navigator &&
-          (navigator as Navigator & { standalone?: boolean }).standalone,
+            (navigator as Navigator & { standalone?: boolean }).standalone,
         ),
     );
 
@@ -783,6 +808,7 @@ export default function KentRestaurantsDirectory() {
     const status = params.get("status");
     const view = params.get("view");
     const sort = params.get("sort");
+    const query = params.get("q");
 
     if (isRegionFilter(region)) {
       setRegionFilter(region);
@@ -802,6 +828,10 @@ export default function KentRestaurantsDirectory() {
 
     if (isSortMode(sort)) {
       setSortMode(sort);
+    }
+
+    if (query) {
+      setSearchQuery(query);
     }
 
     setHasHydratedFilters(true);
@@ -846,6 +876,7 @@ export default function KentRestaurantsDirectory() {
   }, [townFilter, townFilters]);
 
   const visibleRestaurants = useMemo(() => {
+    const normalizedSearch = searchQuery.trim().toLowerCase();
     const filteredRestaurants = restaurants.filter((restaurant) => {
       const matchesRegion =
         regionFilter === "All" || restaurant.region === regionFilter;
@@ -853,8 +884,23 @@ export default function KentRestaurantsDirectory() {
         townFilter === "All" || restaurant.town === townFilter;
       const matchesStatus =
         statusFilter === "All" || restaurant.status === statusFilter;
+      const matchesSearch =
+        normalizedSearch.length === 0 ||
+        [
+          restaurant.name,
+          restaurant.region,
+          restaurant.town,
+          restaurant.address,
+          restaurant.category,
+          restaurant.status,
+          restaurant.notes,
+          restaurant.evidence,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedSearch);
 
-      return matchesRegion && matchesTown && matchesStatus;
+      return matchesRegion && matchesTown && matchesStatus && matchesSearch;
     });
 
     const withDistance = filteredRestaurants.map((restaurant) => ({
@@ -871,7 +917,14 @@ export default function KentRestaurantsDirectory() {
     return [...withDistance].sort((first, second) => {
       return (first.distanceMiles ?? 0) - (second.distanceMiles ?? 0);
     });
-  }, [regionFilter, sortMode, statusFilter, townFilter, userLocation]);
+  }, [
+    regionFilter,
+    searchQuery,
+    sortMode,
+    statusFilter,
+    townFilter,
+    userLocation,
+  ]);
 
   useEffect(() => {
     if (!hasHydratedFilters) {
@@ -892,6 +945,10 @@ export default function KentRestaurantsDirectory() {
       params.set("status", statusFilter);
     }
 
+    if (searchQuery.trim()) {
+      params.set("q", searchQuery.trim());
+    }
+
     if (viewMode !== "list") {
       params.set("view", viewMode);
     }
@@ -909,6 +966,7 @@ export default function KentRestaurantsDirectory() {
   }, [
     hasHydratedFilters,
     regionFilter,
+    searchQuery,
     sortMode,
     statusFilter,
     townFilter,
@@ -1129,7 +1187,7 @@ export default function KentRestaurantsDirectory() {
                       ? `Sorting can use ${
                           distanceOriginLabel ?? "your selected location"
                         } as the starting point.`
-                      : "Use your location or enter an address to bring nearby places to the top."}
+                      : "Use your location or refine results to sort from an address."}
                   </Text>
                   {locationError ? (
                     <Text aria-live="polite" color="red.fg" fontSize="sm">
@@ -1184,83 +1242,38 @@ export default function KentRestaurantsDirectory() {
                 </Flex>
               </Flex>
 
-              <Box
-                as="form"
-                borderColor={colors.borderMuted}
-                borderTopWidth="1px"
-                onSubmit={handleAddressSearch}
-                pt={4}
-              >
-                <Flex
-                  align={{ base: "stretch", md: "flex-end" }}
-                  gap={3}
-                  wrap="wrap"
+              <Box borderColor={colors.borderMuted} borderTopWidth="1px" pt={4}>
+                <Stack
+                  as="label"
+                  cursor="text"
+                  gap={1}
+                  maxW={{ base: "100%", md: "520px" }}
                 >
-                  <Stack
-                    as="label"
-                    cursor="text"
-                    flex="1"
-                    gap={1}
-                    minW={{ base: "100%", md: "300px" }}
-                  >
-                    <Text
-                      color={colors.muted}
-                      fontSize="sm"
-                      fontWeight="medium"
-                    >
-                      Sort From Address
-                    </Text>
-                    <Input
-                      autoComplete="street-address"
-                      bg="#fdfaf4"
-                      borderColor={colors.border}
-                      borderWidth="1px"
-                      color={colors.ink}
-                      id="address-origin"
-                      name="address-origin"
-                      onChange={(event) => setAddressQuery(event.target.value)}
-                      placeholder="Santander, Cheapside, London"
-                      rounded="full"
-                      value={addressQuery}
-                      _focusVisible={{
-                        borderColor: colors.accent,
-                        outline: "2px solid",
-                        outlineColor: colors.accentSoft,
-                      }}
-                      _placeholder={{ color: colors.muted }}
-                    />
-                  </Stack>
-
-                  <Button
-                    bg={colors.accent}
-                    borderColor={colors.accent}
+                  <Text color={colors.muted} fontSize="sm" fontWeight="medium">
+                    Search Restaurants
+                  </Text>
+                  <Input
+                    autoComplete="off"
+                    bg="#fdfaf4"
+                    borderColor={colors.border}
                     borderWidth="1px"
-                    color="white"
-                    loading={isGeocodingAddress}
-                    minW={{ base: "100%", sm: "auto" }}
-                    rounded="full"
-                    type="submit"
-                    _focusVisible={{
-                      outline: "2px solid",
-                      outlineColor: colors.accent,
-                      outlineOffset: "2px",
+                    color={colors.ink}
+                    name="restaurant-search"
+                    onChange={(event) => {
+                      setSearchQuery(event.target.value);
+                      setOpenRestaurantId(null);
                     }}
-                    _hover={{ bg: "#1d382f" }}
-                  >
-                    Sort Nearby
-                  </Button>
-                </Flex>
-                <Text
-                  aria-live="polite"
-                  color={addressError ? "red.fg" : colors.muted}
-                  fontSize="sm"
-                  mt={2}
-                >
-                  {addressError ??
-                    (distanceOriginLabel
-                      ? `Distance is measured from ${distanceOriginLabel}.`
-                      : "Address search uses OpenStreetMap.")}
-                </Text>
+                    placeholder="Search by name, area, or address"
+                    rounded="full"
+                    value={searchQuery}
+                    _focusVisible={{
+                      borderColor: colors.accent,
+                      outline: "2px solid",
+                      outlineColor: colors.accentSoft,
+                    }}
+                    _placeholder={{ color: colors.muted }}
+                  />
+                </Stack>
               </Box>
             </Stack>
           </Box>
@@ -1467,40 +1480,117 @@ export default function KentRestaurantsDirectory() {
                   borderTopWidth="1px"
                   pt={4}
                 >
-                  <Flex gap={3} justify="space-between" wrap="wrap">
-                    <Stack gap={1}>
-                      <Text
-                        color={colors.muted}
-                        fontSize="sm"
-                        fontWeight="medium"
-                      >
-                        Distance
-                      </Text>
-                      <Text color={colors.muted} fontSize="sm">
-                        {userLocation
-                          ? "Nearest-first sorting is ready."
-                          : "Use Location above, then sort nearest first."}
-                      </Text>
-                    </Stack>
+                  <Stack gap={4}>
+                    <Flex gap={3} justify="space-between" wrap="wrap">
+                      <Stack gap={1}>
+                        <Text
+                          color={colors.muted}
+                          fontSize="sm"
+                          fontWeight="medium"
+                        >
+                          Distance
+                        </Text>
+                        <Text color={colors.muted} fontSize="sm">
+                          {userLocation
+                            ? "Nearest-first sorting is ready."
+                            : "Use Location above, then sort nearest first."}
+                        </Text>
+                      </Stack>
 
-                    <Flex align="flex-end" gap={2} wrap="wrap">
-                      <FilterPill
-                        active={sortMode === "distance"}
-                        disabled={!userLocation}
-                        onClick={() => setSortMode("distance")}
-                        size="sm"
-                      >
-                        Nearest First
-                      </FilterPill>
-                      <FilterPill
-                        active={sortMode === "default"}
-                        onClick={() => setSortMode("default")}
-                        size="sm"
-                      >
-                        Default
-                      </FilterPill>
+                      <Flex align="flex-end" gap={2} wrap="wrap">
+                        <FilterPill
+                          active={sortMode === "distance"}
+                          disabled={!userLocation}
+                          onClick={() => setSortMode("distance")}
+                          size="sm"
+                        >
+                          Nearest First
+                        </FilterPill>
+                        <FilterPill
+                          active={sortMode === "default"}
+                          onClick={() => setSortMode("default")}
+                          size="sm"
+                        >
+                          Default
+                        </FilterPill>
+                      </Flex>
                     </Flex>
-                  </Flex>
+
+                    <Box as="form" onSubmit={handleAddressSearch}>
+                      <Flex
+                        align={{ base: "stretch", md: "flex-end" }}
+                        gap={3}
+                        wrap="wrap"
+                      >
+                        <Stack
+                          as="label"
+                          cursor="text"
+                          flex="1"
+                          gap={1}
+                          minW={{ base: "100%", md: "300px" }}
+                        >
+                          <Text
+                            color={colors.muted}
+                            fontSize="sm"
+                            fontWeight="medium"
+                          >
+                            Sort From Address
+                          </Text>
+                          <Input
+                            autoComplete="street-address"
+                            bg="#fdfaf4"
+                            borderColor={colors.border}
+                            borderWidth="1px"
+                            color={colors.ink}
+                            id="address-origin"
+                            name="address-origin"
+                            onChange={(event) =>
+                              setAddressQuery(event.target.value)
+                            }
+                            placeholder="Santander, Cheapside, London"
+                            rounded="full"
+                            value={addressQuery}
+                            _focusVisible={{
+                              borderColor: colors.accent,
+                              outline: "2px solid",
+                              outlineColor: colors.accentSoft,
+                            }}
+                            _placeholder={{ color: colors.muted }}
+                          />
+                        </Stack>
+
+                        <Button
+                          bg={colors.accent}
+                          borderColor={colors.accent}
+                          borderWidth="1px"
+                          color="white"
+                          loading={isGeocodingAddress}
+                          minW={{ base: "100%", sm: "auto" }}
+                          rounded="full"
+                          type="submit"
+                          _focusVisible={{
+                            outline: "2px solid",
+                            outlineColor: colors.accent,
+                            outlineOffset: "2px",
+                          }}
+                          _hover={{ bg: "#1d382f" }}
+                        >
+                          Sort Nearby
+                        </Button>
+                      </Flex>
+                      <Text
+                        aria-live="polite"
+                        color={addressError ? "red.fg" : colors.muted}
+                        fontSize="sm"
+                        mt={2}
+                      >
+                        {addressError ??
+                          (distanceOriginLabel
+                            ? `Distance is measured from ${distanceOriginLabel}.`
+                            : "Address search uses OpenStreetMap.")}
+                      </Text>
+                    </Box>
+                  </Stack>
                 </Box>
               </Stack>
             </Box>
@@ -1784,7 +1874,7 @@ function DirectoryList({
         <Heading as="h2" size="lg">
           📋 Directory
         </Heading>
-        <Stack gap={3}>
+        <SimpleGrid columns={{ base: 1, xl: 2 }} gap={4}>
           {visibleRestaurants.length > 0 ? (
             visibleRestaurants.map(({ distanceMiles, restaurant }) => {
               const isOpen = openRestaurantId === restaurant.id;
@@ -1804,7 +1894,7 @@ function DirectoryList({
           ) : (
             <EmptyState />
           )}
-        </Stack>
+        </SimpleGrid>
       </Stack>
     </Box>
   );
@@ -1872,13 +1962,22 @@ function EmptyState() {
       bg={colors.panel}
       borderColor={colors.border}
       borderWidth="1px"
-      p={5}
+      gridColumn="1 / -1"
+      p={{ base: 6, md: 8 }}
       rounded="xl"
     >
-      <Text color={colors.muted}>
-        No restaurants match these filters. Try another region, area, or
-        confidence level.
-      </Text>
+      <Stack align="center" gap={3} textAlign="center">
+        <Text aria-hidden="true" fontSize="4xl" lineHeight="1">
+          🍲
+        </Text>
+        <Heading as="h3" fontSize="xl">
+          Nothing tasty here yet
+        </Heading>
+        <Text color={colors.muted} maxW="lg">
+          No restaurants match these filters. Try another search, region, area,
+          or confidence level.
+        </Text>
+      </Stack>
     </Box>
   );
 }
@@ -2009,23 +2108,48 @@ function MapPlot({
 
       {userLocation ? (
         <Box
-          bg={colors.ink}
-          color="white"
-          fontSize="xs"
-          fontWeight="bold"
-          h="40px"
+          aria-label="Your current location"
           left={`${getMapPosition(userLocation, bounds).x}%`}
-          lineHeight="40px"
           position="absolute"
-          rounded="full"
-          textAlign="center"
-          title="Your current location"
           top={`${getMapPosition(userLocation, bounds).y}%`}
-          transform="translate(-50%, -50%)"
-          w="40px"
-          zIndex={3}
+          transform="translate(-50%, -100%)"
+          zIndex={6}
         >
-          You
+          <Stack align="center" gap={1}>
+            <Box
+              alignItems="center"
+              bg="#fffdf8"
+              borderColor={colors.accent}
+              borderWidth="3px"
+              color={colors.accent}
+              display="flex"
+              fontSize="2xl"
+              h="58px"
+              justifyContent="center"
+              lineHeight="1"
+              rounded="full"
+              title="Your current location"
+              w="58px"
+            >
+              📍
+            </Box>
+            <Box
+              bg={colors.ink}
+              borderColor="white"
+              borderWidth="2px"
+              color="white"
+              fontSize="xs"
+              fontWeight="bold"
+              lineHeight="1"
+              px={3}
+              py={2}
+              rounded="full"
+              textAlign="center"
+              whiteSpace="nowrap"
+            >
+              You are here
+            </Box>
+          </Stack>
         </Box>
       ) : null}
     </Box>
@@ -2087,129 +2211,175 @@ function RestaurantRow({
       bg={colors.panel}
       borderColor={isOpen ? colors.accent : colors.border}
       borderWidth="1px"
-      p={{ base: 4, md: 5 }}
+      overflow="hidden"
+      position="relative"
       rounded="xl"
     >
-      <Stack gap={isOpen ? 5 : 0}>
-        <Flex
-          align={{ base: "stretch", md: "center" }}
-          direction={{ base: "column", md: "row" }}
-          gap={3}
-          justify="space-between"
-        >
-          <Stack gap={1} minW={0}>
-            <Flex align="center" gap={2} wrap="wrap">
-              <Heading as="h3" size="md">
-                {restaurant.name}
-              </Heading>
-              <StatusBadge status={restaurant.status} />
-            </Flex>
-            <Text color={colors.muted}>
-              {restaurant.region} · {restaurant.town} ·{" "}
-              {restaurant.rating ?? "Rating not published"}
-              {distanceMiles !== null
-                ? ` · ${formatDistance(distanceMiles)} away`
-                : ""}
-            </Text>
-          </Stack>
+      <Flex align="stretch" direction={{ base: "column", md: "row" }}>
+        <RestaurantVisual restaurant={restaurant} />
 
-          <Button
-            aria-controls={detailsId}
-            aria-expanded={isOpen}
-            bg={isOpen ? colors.accent : "transparent"}
-            borderColor={isOpen ? colors.accent : colors.border}
-            borderWidth="1px"
-            color={isOpen ? "white" : colors.ink}
-            onClick={onToggle}
-            rounded="full"
-            size="sm"
-            variant="ghost"
-            _hover={{
-              bg: isOpen ? colors.accent : "#f4f0e8",
-            }}
-            _focusVisible={{
-              outline: "2px solid",
-              outlineColor: colors.accent,
-              outlineOffset: "2px",
-            }}
+        <Stack flex="1" gap={isOpen ? 5 : 0} p={{ base: 4, md: 5 }}>
+          <Flex
+            align={{ base: "stretch", md: "center" }}
+            direction={{ base: "column", md: "row" }}
+            gap={3}
+            justify="space-between"
           >
-            {isOpen ? "Hide" : "View"}
-          </Button>
-        </Flex>
+            <Stack gap={1} minW={0}>
+              <Flex align="center" gap={2} wrap="wrap">
+                <Heading as="h3" size="md">
+                  {restaurant.name}
+                </Heading>
+                <StatusBadge status={restaurant.status} />
+              </Flex>
+              <Text color={colors.muted}>
+                {restaurant.region} · {restaurant.town} ·{" "}
+                {restaurant.rating ?? "Rating not published"}
+                {distanceMiles !== null
+                  ? ` · ${formatDistance(distanceMiles)} away`
+                  : ""}
+              </Text>
+              <Text color={colors.muted} fontSize="sm" lineClamp={2}>
+                {restaurant.category}
+              </Text>
+            </Stack>
 
-        {isOpen ? (
-          <Box
-            borderColor={colors.borderMuted}
-            borderTopWidth="1px"
-            id={detailsId}
-            pt={5}
-          >
-            <Stack gap={4}>
-              <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
-                <Info label="Category" value={restaurant.category} />
-                <Info label="Region" value={restaurant.region} />
-                <Info label="Town / borough" value={restaurant.town} />
-                <Info label="Address" value={restaurant.address} />
-                <Info
-                  label="Phone"
-                  value={restaurant.phone ?? "Not published"}
-                />
-                <Info
-                  label="Average reviews"
-                  value={restaurant.rating ?? "Not published"}
-                />
-                <Info
-                  label="Review source"
-                  value={restaurant.ratingSource ?? "Not published"}
-                />
-                <Info
-                  label="Distance"
-                  value={
-                    distanceMiles === null
-                      ? "Use location or enter an address to calculate"
-                      : `${formatDistance(distanceMiles)} away`
-                  }
-                />
-                <Info
-                  label="Website"
-                  value={
-                    restaurant.website ? (
+            <Button
+              aria-controls={detailsId}
+              aria-expanded={isOpen}
+              bg={isOpen ? colors.accent : "transparent"}
+              borderColor={isOpen ? colors.accent : colors.border}
+              borderWidth="1px"
+              color={isOpen ? "white" : colors.ink}
+              onClick={onToggle}
+              rounded="full"
+              size="sm"
+              variant="ghost"
+              _hover={{
+                bg: isOpen ? colors.accent : "#f4f0e8",
+              }}
+              _focusVisible={{
+                outline: "2px solid",
+                outlineColor: colors.accent,
+                outlineOffset: "2px",
+              }}
+            >
+              {isOpen ? "Hide" : "View"}
+            </Button>
+          </Flex>
+
+          {isOpen ? (
+            <Box
+              borderColor={colors.borderMuted}
+              borderTopWidth="1px"
+              id={detailsId}
+              pt={5}
+            >
+              <Stack gap={4}>
+                <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
+                  <Info label="Category" value={restaurant.category} />
+                  <Info label="Region" value={restaurant.region} />
+                  <Info label="Town / borough" value={restaurant.town} />
+                  <Info label="Address" value={restaurant.address} />
+                  <Info
+                    label="Phone"
+                    value={restaurant.phone ?? "Not published"}
+                  />
+                  <Info
+                    label="Average reviews"
+                    value={restaurant.rating ?? "Not published"}
+                  />
+                  <Info
+                    label="Review source"
+                    value={restaurant.ratingSource ?? "Not published"}
+                  />
+                  <Info
+                    label="Distance"
+                    value={
+                      distanceMiles === null
+                        ? "Use location or enter an address to calculate"
+                        : `${formatDistance(distanceMiles)} away`
+                    }
+                  />
+                  <Info
+                    label="Website"
+                    value={
+                      restaurant.website ? (
+                        <Link
+                          color={colors.accent}
+                          href={restaurant.website}
+                          target="_blank"
+                          textDecoration="underline"
+                          textUnderlineOffset="3px"
+                        >
+                          Visit website
+                        </Link>
+                      ) : (
+                        "Not published"
+                      )
+                    }
+                  />
+                  <Info
+                    label="Map"
+                    value={
                       <Link
                         color={colors.accent}
-                        href={restaurant.website}
+                        href={getMapUrl(restaurant)}
                         target="_blank"
                         textDecoration="underline"
                         textUnderlineOffset="3px"
                       >
-                        Visit website
+                        Open in maps
                       </Link>
-                    ) : (
-                      "Not published"
-                    )
-                  }
-                />
-                <Info
-                  label="Map"
-                  value={
-                    <Link
-                      color={colors.accent}
-                      href={getMapUrl(restaurant)}
-                      target="_blank"
-                      textDecoration="underline"
-                      textUnderlineOffset="3px"
-                    >
-                      Open in maps
-                    </Link>
-                  }
-                />
-              </SimpleGrid>
+                    }
+                  />
+                </SimpleGrid>
 
-              <Info label="Evidence" value={restaurant.evidence} />
-              <Info label="Notes" value={restaurant.notes} />
-            </Stack>
-          </Box>
-        ) : null}
-      </Stack>
+                <Info label="Evidence" value={restaurant.evidence} />
+                <Info label="Notes" value={restaurant.notes} />
+              </Stack>
+            </Box>
+          ) : null}
+        </Stack>
+      </Flex>
+    </Box>
+  );
+}
+
+function RestaurantVisual({ restaurant }: { restaurant: Restaurant }) {
+  const image = getRestaurantImage(restaurant);
+
+  return (
+    <Box
+      bg="#f4f0e8"
+      flexShrink={0}
+      minH={{ base: "136px", md: "auto" }}
+      overflow="hidden"
+      position="relative"
+      w={{ base: "100%", md: "168px" }}
+    >
+      <Image
+        alt={image.alt}
+        h="100%"
+        loading="lazy"
+        objectFit="cover"
+        src={image.src}
+        w="100%"
+      />
+      <Box
+        bg="rgba(36, 35, 31, 0.72)"
+        bottom={3}
+        color="white"
+        fontSize="xs"
+        fontWeight="bold"
+        left={3}
+        px={3}
+        py={1}
+        position="absolute"
+        rounded="full"
+      >
+        {getRestaurantEmoji(restaurant)} {restaurant.town}
+      </Box>
     </Box>
   );
 }
@@ -2227,6 +2397,37 @@ function StatusBadge({ status }: { status: RestaurantStatus }) {
       {getStatusFilterLabel(status)}
     </Badge>
   );
+}
+
+function getRestaurantImage(restaurant: Restaurant) {
+  const imageIndex =
+    restaurant.id.split("").reduce((total, character) => {
+      return total + character.charCodeAt(0);
+    }, 0) % restaurantImages.length;
+
+  return restaurantImages[imageIndex];
+}
+
+function getRestaurantEmoji(restaurant: Restaurant) {
+  const category = restaurant.category.toLowerCase();
+
+  if (category.includes("suya") || category.includes("grill")) {
+    return "🔥";
+  }
+
+  if (category.includes("fine dining")) {
+    return "✨";
+  }
+
+  if (category.includes("tapas") || category.includes("fusion")) {
+    return "🍽️";
+  }
+
+  if (restaurant.status === "Candidate") {
+    return "📌";
+  }
+
+  return "🍲";
 }
 
 function getStatusFilterLabel(status: StatusFilter) {

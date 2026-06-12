@@ -11,8 +11,9 @@ Analytics, research notes, and advanced filters are secondary. They can exist, b
 ## Interaction Rules
 
 - Show the restaurant list as the primary browsing surface.
+- Keep general restaurant search near the list because users may arrive looking for a specific place.
 - Keep `Use Location` close to the list because distance sorting is a core user task.
-- Let users enter an address as an alternative distance origin when they do not want to share browser location.
+- Keep user-entered address sorting inside `Refine Results`; it is an advanced distance-origin control.
 - Keep `Refine Results` collapsed by default.
 - Keep analytics collapsed by default and place them after the browsing surface.
 - Keep map view available, but do not make it the default over the list.
@@ -48,6 +49,7 @@ Distance sorting uses postcode-level restaurant coordinates plus either browser 
 - Does the list still appear before secondary analytics?
 - Is `Refine Results` still collapsed by default?
 - Can users request location or enter an address without hunting through filters?
+- Can users search for a known restaurant without opening filters?
 - Are Chakra UI components used for controls?
 - Are borders thin and shadows absent?
 - Does the page remain comfortable on mobile?
