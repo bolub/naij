@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Kent Naija app icon">
+  <rect width="512" height="512" rx="112" fill="#1f2a24"/>
+  <circle cx="396" cy="116" r="96" fill="#f3b35c" opacity="0.92"/>
+  <circle cx="118" cy="398" r="118" fill="#5f7f4f" opacity="0.82"/>
+  <path fill="#fff9ef" d="M142 157h228v48H142zM142 233h228v48H142zM142 309h156v48H142z"/>
+  <path fill="#df6446" d="M326 314c34 0 62 28 62 62s-28 62-62 62-62-28-62-62 28-62 62-62Zm0 36c-14 0-26 12-26 26s12 26 26 26 26-12 26-26-12-26-26-26Z"/>
+</svg>
