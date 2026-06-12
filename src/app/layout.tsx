@@ -41,6 +41,11 @@ export default function RootLayout({
       className={`${monaSans.variable} ${monaSans.className}`}
       suppressHydrationWarning
     >
+      <head>
+        <link rel="preconnect" href="https://images.squarespace-cdn.com" />
+        <link rel="preconnect" href="https://tobisrestaurant.co.uk" />
+        <link rel="preconnect" href="https://enishglobal.com" />
+      </head>
       <body style={fontVariables}>
         <Provider>{children}</Provider>
       </body>

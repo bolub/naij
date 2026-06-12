@@ -26,6 +26,8 @@ The UI should feel simple, friendly, and restrained. Use light mode by default, 
 
 Use emojis sparingly for warmth and recognition. Do not add icon libraries unless the product direction changes. Avoid decorative gradients, heavy color systems, large dashboard stats, and marketing-style hero sections.
 
+Use verified restaurant images only when they come from a known restaurant-owned or listing-owned source. If no verified image is available, use the in-app emoji placeholder rather than a generic stock food image.
+
 ## Chakra UI Guidance
 
 Use Chakra UI v3 components by default. Prefer Chakra primitives and documented component APIs over native controls when Chakra has an equivalent.

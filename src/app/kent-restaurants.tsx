@@ -98,24 +98,33 @@ const statusFilters: StatusFilter[] = [
 ];
 const regionFilters: RegionFilter[] = ["All", "Kent", "London"];
 const nominatimSearchUrl = "https://nominatim.openstreetmap.org/search";
-const restaurantImages: RestaurantImage[] = [
-  {
-    alt: "A warm plate of jollof-style rice and sides",
-    src: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=640&q=80",
+const enishImage: RestaurantImage = {
+  alt: "Enish restaurant official image",
+  src: "https://enishglobal.com/cdn/shop/articles/f1d79c3b-1adf-4d38-a542-69d3709823b4_d044f4db-afa4-4b86-9c62-d7316d441601.jpg?v=1779453486&width=1000",
+};
+const restaurantMedia: Partial<Record<string, RestaurantImage>> = {
+  "chukus-tottenham": {
+    alt: "Guests enjoying brunch at Chuku's Nigerian Tapas",
+    src: "https://images.squarespace-cdn.com/content/v1/5660b1fce4b02b9823896f23/a952c833-7ce1-4f53-b0d5-cdf47a66f346/Guests+Enjoying+Brunch+-+Chuku%27s+Nigerian+Tapas+Restaurant+in+Tottenham+North+London.jpg?format=750w",
   },
-  {
-    alt: "Grilled skewers and smoky restaurant food",
-    src: "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=640&q=80",
+  "tobis-restaurant-bar": {
+    alt: "Tobis Restaurant & Bar official image",
+    src: "https://tobisrestaurant.co.uk/wp-content/uploads/2023/08/IMG-20230804-WA0015.jpg",
   },
-  {
-    alt: "A generous table spread for sharing",
-    src: "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=640&q=80",
-  },
-  {
-    alt: "Colourful comfort food served in bowls",
-    src: "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=640&q=80",
-  },
-];
+  "enish-brixton": enishImage,
+  "enish-camberwell-24": enishImage,
+  "enish-camberwell-buka": enishImage,
+  "enish-camden": enishImage,
+  "enish-croydon": enishImage,
+  "enish-finchley-road": enishImage,
+  "enish-ilford": enishImage,
+  "enish-knightsbridge": enishImage,
+  "enish-lewisham": enishImage,
+  "enish-old-kent-road": enishImage,
+  "enish-oxford-street": enishImage,
+  "enish-shoreditch": enishImage,
+  "enish-soho-edition": enishImage,
+};
 
 const restaurants: Restaurant[] = [
   {
@@ -763,10 +772,15 @@ export default function KentRestaurantsDirectory() {
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js", {
-        scope: "/",
-        updateViaCache: "none",
-      });
+      navigator.serviceWorker
+        .register("/sw.js", {
+          scope: "/",
+          updateViaCache: "none",
+        })
+        .then((registration) => registration.update())
+        .catch(() => {
+          // Installability is a nice-to-have; the directory should still run.
+        });
     }
 
     setIsStandalone(
@@ -809,6 +823,7 @@ export default function KentRestaurantsDirectory() {
     const view = params.get("view");
     const sort = params.get("sort");
     const query = params.get("q");
+    const selected = params.get("selected");
 
     if (isRegionFilter(region)) {
       setRegionFilter(region);
@@ -832,6 +847,13 @@ export default function KentRestaurantsDirectory() {
 
     if (query) {
       setSearchQuery(query);
+    }
+
+    if (
+      selected &&
+      restaurants.some((restaurant) => restaurant.id === selected)
+    ) {
+      setOpenRestaurantId(selected);
     }
 
     setHasHydratedFilters(true);
@@ -957,6 +979,10 @@ export default function KentRestaurantsDirectory() {
       params.set("sort", sortMode);
     }
 
+    if (openRestaurantId) {
+      params.set("selected", openRestaurantId);
+    }
+
     const query = params.toString();
     const nextUrl = query
       ? `${window.location.pathname}?${query}`
@@ -965,6 +991,7 @@ export default function KentRestaurantsDirectory() {
     window.history.replaceState(null, "", nextUrl);
   }, [
     hasHydratedFilters,
+    openRestaurantId,
     regionFilter,
     searchQuery,
     sortMode,
@@ -1105,13 +1132,11 @@ export default function KentRestaurantsDirectory() {
         <Stack gap={{ base: 5, md: 7 }}>
           <Box
             as="header"
-            bg={colors.panel}
-            borderColor={colors.border}
-            borderWidth="1px"
+            borderBottomColor={colors.border}
+            borderBottomWidth="1px"
             overflow="hidden"
-            p={{ base: 5, md: 8 }}
+            pb={{ base: 5, md: 8 }}
             position="relative"
-            rounded={{ base: "xl", md: "2xl" }}
           >
             <Stack gap={5} position="relative">
               <Flex align="center" gap={3} justify="space-between" wrap="wrap">
@@ -1168,11 +1193,9 @@ export default function KentRestaurantsDirectory() {
 
           <Box
             as="section"
-            bg={colors.panel}
             borderColor={colors.border}
-            borderWidth="1px"
-            p={{ base: 4, md: 5 }}
-            rounded="xl"
+            borderBottomWidth="1px"
+            pb={{ base: 5, md: 6 }}
           >
             <Stack gap={4}>
               <Flex align="center" gap={4} justify="space-between" wrap="wrap">
@@ -1263,7 +1286,7 @@ export default function KentRestaurantsDirectory() {
                       setSearchQuery(event.target.value);
                       setOpenRestaurantId(null);
                     }}
-                    placeholder="Search by name, area, or address"
+                    placeholder="e.g. Enish, Chatham, or jollof…"
                     rounded="full"
                     value={searchQuery}
                     _focusVisible={{
@@ -1281,11 +1304,9 @@ export default function KentRestaurantsDirectory() {
           {isRefineOpen ? (
             <Box
               as="section"
-              bg={colors.panel}
               borderColor={colors.border}
-              borderWidth="1px"
-              p={{ base: 4, md: 5 }}
-              rounded="xl"
+              borderBottomWidth="1px"
+              pb={{ base: 5, md: 6 }}
             >
               <Stack gap={4}>
                 <Flex
@@ -1435,7 +1456,7 @@ export default function KentRestaurantsDirectory() {
                     >
                       <Combobox.Input
                         color={colors.ink}
-                        placeholder="Search areas"
+                        placeholder="e.g. Brixton…"
                         px={4}
                         _placeholder={{ color: colors.muted }}
                       />
@@ -1547,7 +1568,7 @@ export default function KentRestaurantsDirectory() {
                             onChange={(event) =>
                               setAddressQuery(event.target.value)
                             }
-                            placeholder="Santander, Cheapside, London"
+                            placeholder="e.g. Santander, Cheapside, London…"
                             rounded="full"
                             value={addressQuery}
                             _focusVisible={{
@@ -1613,11 +1634,9 @@ export default function KentRestaurantsDirectory() {
 
           <Box
             as="section"
-            bg={colors.panel}
             borderColor={colors.border}
-            borderWidth="1px"
-            p={{ base: 4, md: 5 }}
-            rounded="xl"
+            borderTopWidth="1px"
+            pt={{ base: 4, md: 5 }}
           >
             <Stack gap={4}>
               <Flex align="center" gap={3} justify="space-between" wrap="wrap">
@@ -1679,11 +1698,9 @@ export default function KentRestaurantsDirectory() {
 
           <Box
             as="section"
-            bg={colors.panel}
             borderColor={colors.border}
-            borderWidth="1px"
-            p={{ base: 4, md: 5 }}
-            rounded="xl"
+            borderTopWidth="1px"
+            pt={{ base: 4, md: 5 }}
           >
             <Stack gap={3}>
               <Heading as="h2" size="md">
@@ -1874,7 +1891,12 @@ function DirectoryList({
         <Heading as="h2" size="lg">
           📋 Directory
         </Heading>
-        <SimpleGrid columns={{ base: 1, xl: 2 }} gap={4}>
+        <Stack
+          bg={colors.panel}
+          borderColor={colors.border}
+          borderTopWidth="1px"
+          gap={0}
+        >
           {visibleRestaurants.length > 0 ? (
             visibleRestaurants.map(({ distanceMiles, restaurant }) => {
               const isOpen = openRestaurantId === restaurant.id;
@@ -1894,7 +1916,7 @@ function DirectoryList({
           ) : (
             <EmptyState />
           )}
-        </SimpleGrid>
+        </Stack>
       </Stack>
     </Box>
   );
@@ -1959,12 +1981,9 @@ function MapView({
 function EmptyState() {
   return (
     <Box
-      bg={colors.panel}
       borderColor={colors.border}
-      borderWidth="1px"
-      gridColumn="1 / -1"
+      borderBottomWidth="1px"
       p={{ base: 6, md: 8 }}
-      rounded="xl"
     >
       <Stack align="center" gap={3} textAlign="center">
         <Text aria-hidden="true" fontSize="4xl" lineHeight="1">
@@ -2208,21 +2227,23 @@ function RestaurantRow({
   return (
     <Box
       as="article"
-      bg={colors.panel}
-      borderColor={isOpen ? colors.accent : colors.border}
-      borderWidth="1px"
-      overflow="hidden"
+      bg={isOpen ? "#fdfaf4" : "transparent"}
+      borderBottomColor={colors.border}
+      borderBottomWidth="1px"
       position="relative"
-      rounded="xl"
     >
-      <Flex align="stretch" direction={{ base: "column", md: "row" }}>
+      <Flex
+        align={{ base: "stretch", md: "center" }}
+        direction={{ base: "column", md: "row" }}
+        gap={{ base: 0, md: 4 }}
+      >
         <RestaurantVisual restaurant={restaurant} />
 
-        <Stack flex="1" gap={isOpen ? 5 : 0} p={{ base: 4, md: 5 }}>
+        <Stack flex="1" gap={isOpen ? 5 : 0} p={{ base: 4, md: 4 }}>
           <Flex
             align={{ base: "stretch", md: "center" }}
             direction={{ base: "column", md: "row" }}
-            gap={3}
+            gap={{ base: 3, md: 5 }}
             justify="space-between"
           >
             <Stack gap={1} minW={0}>
@@ -2255,6 +2276,7 @@ function RestaurantRow({
               rounded="full"
               size="sm"
               variant="ghost"
+              w={{ base: "fit-content", md: "auto" }}
               _hover={{
                 bg: isOpen ? colors.accent : "#f4f0e8",
               }}
@@ -2347,29 +2369,46 @@ function RestaurantRow({
 }
 
 function RestaurantVisual({ restaurant }: { restaurant: Restaurant }) {
-  const image = getRestaurantImage(restaurant);
+  const image = restaurantMedia[restaurant.id];
 
   return (
     <Box
-      bg="#f4f0e8"
+      alignSelf="stretch"
+      bg={image ? "#f4f0e8" : colors.accentSoft}
+      borderBottomColor={{ base: colors.border, md: "transparent" }}
+      borderBottomWidth={{ base: "1px", md: "0" }}
+      borderRightColor={{ base: "transparent", md: colors.border }}
+      borderRightWidth={{ base: "0", md: "1px" }}
       flexShrink={0}
-      minH={{ base: "136px", md: "auto" }}
+      minH={{ base: "116px", md: "136px" }}
       overflow="hidden"
       position="relative"
-      w={{ base: "100%", md: "168px" }}
+      w={{ base: "100%", md: "148px" }}
     >
-      <Image
-        alt={image.alt}
-        h="100%"
-        loading="lazy"
-        objectFit="cover"
-        src={image.src}
-        w="100%"
-      />
+      {image ? (
+        <Image
+          alt={image.alt}
+          h="100%"
+          htmlHeight={420}
+          htmlWidth={640}
+          loading="lazy"
+          objectFit="cover"
+          src={image.src}
+          w="100%"
+        />
+      ) : (
+        <Stack align="center" h="100%" justify="center" p={4}>
+          <Text aria-hidden="true" fontSize="4xl" lineHeight="1">
+            {getRestaurantEmoji(restaurant)}
+          </Text>
+        </Stack>
+      )}
       <Box
-        bg="rgba(36, 35, 31, 0.72)"
+        bg={image ? "rgba(36, 35, 31, 0.72)" : colors.panel}
+        borderColor={image ? "transparent" : colors.border}
+        borderWidth={image ? "0" : "1px"}
         bottom={3}
-        color="white"
+        color={image ? "white" : colors.ink}
         fontSize="xs"
         fontWeight="bold"
         left={3}
@@ -2397,15 +2436,6 @@ function StatusBadge({ status }: { status: RestaurantStatus }) {
       {getStatusFilterLabel(status)}
     </Badge>
   );
-}
-
-function getRestaurantImage(restaurant: Restaurant) {
-  const imageIndex =
-    restaurant.id.split("").reduce((total, character) => {
-      return total + character.charCodeAt(0);
-    }, 0) % restaurantImages.length;
-
-  return restaurantImages[imageIndex];
 }
 
 function getRestaurantEmoji(restaurant: Restaurant) {
