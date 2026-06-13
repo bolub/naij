@@ -55,7 +55,7 @@ type Region = "Kent" | "London";
 type RegionFilter = "All" | Region;
 type StatusFilter = "All" | RestaurantStatus;
 type SortMode = "default" | "distance";
-type ViewMode = "list" | "map";
+type ViewMode = "grid" | "list" | "map";
 
 type Restaurant = {
   id: string;
@@ -752,7 +752,7 @@ export default function KentRestaurantsDirectory() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("default");
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [distanceOriginLabel, setDistanceOriginLabel] = useState<string | null>(
     null,
@@ -787,7 +787,7 @@ export default function KentRestaurantsDirectory() {
       window.matchMedia("(display-mode: standalone)").matches ||
         Boolean(
           "standalone" in navigator &&
-            (navigator as Navigator & { standalone?: boolean }).standalone,
+          (navigator as Navigator & { standalone?: boolean }).standalone,
         ),
     );
 
@@ -971,7 +971,7 @@ export default function KentRestaurantsDirectory() {
       params.set("q", searchQuery.trim());
     }
 
-    if (viewMode !== "list") {
+    if (viewMode !== "grid") {
       params.set("view", viewMode);
     }
 
@@ -1241,20 +1241,6 @@ export default function KentRestaurantsDirectory() {
                   >
                     📍 {userLocation ? "Update Location" : "Use Location"}
                   </Button>
-                  <FilterPill
-                    active={viewMode === "list"}
-                    onClick={() => setViewMode("list")}
-                    size="sm"
-                  >
-                    📋 List
-                  </FilterPill>
-                  <FilterPill
-                    active={viewMode === "map"}
-                    onClick={() => setViewMode("map")}
-                    size="sm"
-                  >
-                    🗺️ Map
-                  </FilterPill>
                   <FilterPill
                     active={isRefineOpen}
                     onClick={() => setIsRefineOpen((isOpen) => !isOpen)}
@@ -1617,6 +1603,8 @@ export default function KentRestaurantsDirectory() {
             </Box>
           ) : null}
 
+          <DirectoryHeader setViewMode={setViewMode} viewMode={viewMode} />
+
           {viewMode === "map" ? (
             <MapView
               openRestaurantId={openRestaurantId}
@@ -1624,11 +1612,17 @@ export default function KentRestaurantsDirectory() {
               setOpenRestaurantId={setOpenRestaurantId}
               userLocation={userLocation}
             />
-          ) : (
+          ) : viewMode === "list" ? (
             <DirectoryList
               openRestaurantId={openRestaurantId}
               restaurants={visibleRestaurants}
               setOpenRestaurantId={setOpenRestaurantId}
+            />
+          ) : (
+            <DirectoryGrid
+              selectedRestaurantId={openRestaurantId}
+              restaurants={visibleRestaurants}
+              setSelectedRestaurantId={setOpenRestaurantId}
             />
           )}
 
@@ -1644,9 +1638,6 @@ export default function KentRestaurantsDirectory() {
                   <Heading as="h2" fontSize="lg">
                     Directory Insights
                   </Heading>
-                  <Text color={colors.muted} fontSize="sm">
-                    Optional snapshot for coverage and confidence.
-                  </Text>
                 </Stack>
                 <Button
                   bg="transparent"
@@ -1876,6 +1867,84 @@ function FilterPill({
   );
 }
 
+function ViewTogglePill({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      bg={active ? colors.accentSoft : "transparent"}
+      borderColor={active ? colors.borderMuted : "transparent"}
+      borderWidth="1px"
+      color={active ? colors.accent : colors.muted}
+      fontWeight={active ? "semibold" : "medium"}
+      onClick={onClick}
+      px={3}
+      rounded="full"
+      size="sm"
+      variant="ghost"
+      _hover={{
+        bg: active ? "#e5eee8" : "#f4f0e8",
+        color: colors.accent,
+      }}
+      _focusVisible={{
+        outline: "2px solid",
+        outlineColor: colors.accent,
+        outlineOffset: "2px",
+      }}
+    >
+      {children}
+    </Button>
+  );
+}
+
+function DirectoryHeader({
+  setViewMode,
+  viewMode,
+}: {
+  setViewMode: (viewMode: ViewMode) => void;
+  viewMode: ViewMode;
+}) {
+  return (
+    <Flex
+      align={{ base: "stretch", sm: "center" }}
+      as="section"
+      direction={{ base: "column", sm: "row" }}
+      gap={3}
+      justify="space-between"
+    >
+      <Heading as="h2" size="lg">
+        Directory
+      </Heading>
+      <Flex gap={1} overflowX="auto" pb={{ base: 1, sm: 0 }} wrap="nowrap">
+        <ViewTogglePill
+          active={viewMode === "grid"}
+          onClick={() => setViewMode("grid")}
+        >
+          ▦ Grid
+        </ViewTogglePill>
+        <ViewTogglePill
+          active={viewMode === "list"}
+          onClick={() => setViewMode("list")}
+        >
+          📋 List
+        </ViewTogglePill>
+        <ViewTogglePill
+          active={viewMode === "map"}
+          onClick={() => setViewMode("map")}
+        >
+          🗺️ Map
+        </ViewTogglePill>
+      </Flex>
+    </Flex>
+  );
+}
+
 function DirectoryList({
   openRestaurantId,
   restaurants: visibleRestaurants,
@@ -1887,15 +1956,12 @@ function DirectoryList({
 }) {
   return (
     <Box as="section">
-      <Stack gap={3}>
-        <Heading as="h2" size="lg">
-          📋 Directory
-        </Heading>
+      <Stack gap={0}>
         <Stack
-          bg={colors.panel}
+          bg={{ base: "transparent", sm: colors.panel }}
           borderColor={colors.border}
-          borderTopWidth="1px"
-          gap={0}
+          borderTopWidth={{ base: "0", sm: "1px" }}
+          gap={{ base: 4, sm: 0 }}
         >
           {visibleRestaurants.length > 0 ? (
             visibleRestaurants.map(({ distanceMiles, restaurant }) => {
@@ -1922,6 +1988,393 @@ function DirectoryList({
   );
 }
 
+function DirectoryGrid({
+  restaurants: visibleRestaurants,
+  selectedRestaurantId,
+  setSelectedRestaurantId,
+}: {
+  restaurants: RestaurantWithDistance[];
+  selectedRestaurantId: string | null;
+  setSelectedRestaurantId: (restaurantId: string | null) => void;
+}) {
+  const selectedRestaurant = visibleRestaurants.find(
+    ({ restaurant }) => restaurant.id === selectedRestaurantId,
+  );
+
+  if (selectedRestaurant) {
+    return (
+      <GridRestaurantDetail
+        distanceMiles={selectedRestaurant.distanceMiles}
+        onBack={() => setSelectedRestaurantId(null)}
+        restaurant={selectedRestaurant.restaurant}
+      />
+    );
+  }
+
+  return (
+    <Box as="section">
+      <Stack gap={3}>
+        {visibleRestaurants.length > 0 ? (
+          <SimpleGrid columns={{ base: 1, md: 2, xl: 3 }} gap={4}>
+            {visibleRestaurants.map(({ distanceMiles, restaurant }) => (
+              <RestaurantGridCard
+                distanceMiles={distanceMiles}
+                key={restaurant.id}
+                onView={() => setSelectedRestaurantId(restaurant.id)}
+                restaurant={restaurant}
+              />
+            ))}
+          </SimpleGrid>
+        ) : (
+          <EmptyState />
+        )}
+      </Stack>
+    </Box>
+  );
+}
+
+function RestaurantGridCard({
+  distanceMiles,
+  onView,
+  restaurant,
+}: {
+  distanceMiles: number | null;
+  onView: () => void;
+  restaurant: Restaurant;
+}) {
+  const image = restaurantMedia[restaurant.id];
+
+  return (
+    <Box
+      as="article"
+      bg={colors.panel}
+      borderColor={colors.border}
+      borderWidth="1px"
+      display="flex"
+      flexDirection="column"
+      minH="100%"
+      overflow="hidden"
+      rounded="xl"
+    >
+      <Box
+        bg={image ? "#f4f0e8" : colors.accentSoft}
+        borderBottomColor={colors.border}
+        borderBottomWidth="1px"
+        h={{ base: "150px", md: "160px" }}
+        overflow="hidden"
+        position="relative"
+      >
+        {image ? (
+          <Image
+            alt={image.alt}
+            h="100%"
+            htmlHeight={420}
+            htmlWidth={640}
+            loading="lazy"
+            objectFit="cover"
+            src={image.src}
+            w="100%"
+          />
+        ) : (
+          <Stack align="center" h="100%" justify="center">
+            <Text aria-hidden="true" fontSize="4xl" lineHeight="1">
+              {getRestaurantEmoji(restaurant)}
+            </Text>
+          </Stack>
+        )}
+        <Box
+          bg={image ? "rgba(255, 253, 248, 0.92)" : colors.panel}
+          borderColor={colors.border}
+          borderWidth="1px"
+          bottom={3}
+          color={colors.ink}
+          fontSize="xs"
+          fontWeight="bold"
+          left={3}
+          px={3}
+          py={1}
+          position="absolute"
+          rounded="full"
+        >
+          {getRestaurantEmoji(restaurant)} {restaurant.town}
+        </Box>
+      </Box>
+
+      <Stack flex="1" gap={3} p={4}>
+        <Flex align="flex-start" gap={3} justify="space-between">
+          <Heading as="h3" fontSize="lg" lineHeight="1.15">
+            {restaurant.name}
+          </Heading>
+          <StatusBadge status={restaurant.status} />
+        </Flex>
+        <Text color={colors.muted} fontSize="sm" lineClamp={2}>
+          {restaurant.region} · {restaurant.rating ?? "Rating not published"}
+          {distanceMiles !== null
+            ? ` · ${formatDistance(distanceMiles)} away`
+            : ""}
+        </Text>
+        <Text color={colors.muted} fontSize="sm" lineClamp={2}>
+          {restaurant.category}
+        </Text>
+        <Text color={colors.muted} fontSize="sm" lineClamp={2}>
+          {restaurant.address}
+        </Text>
+
+        <Flex gap={2} mt="auto" pt={2} wrap="wrap">
+          <Button
+            bg={colors.accent}
+            borderColor={colors.accent}
+            borderWidth="1px"
+            color="white"
+            onClick={onView}
+            rounded="full"
+            size="sm"
+            _hover={{ bg: "#1d382f" }}
+            _focusVisible={{
+              outline: "2px solid",
+              outlineColor: colors.accent,
+              outlineOffset: "2px",
+            }}
+          >
+            View
+          </Button>
+          <Link
+            alignItems="center"
+            borderColor={colors.border}
+            borderWidth="1px"
+            color={colors.ink}
+            display="inline-flex"
+            fontSize="sm"
+            fontWeight="medium"
+            href={getMapUrl(restaurant)}
+            minH="32px"
+            px={3}
+            rounded="full"
+            target="_blank"
+            _hover={{ bg: "#f4f0e8", textDecoration: "none" }}
+            _focusVisible={{
+              outline: "2px solid",
+              outlineColor: colors.accent,
+              outlineOffset: "2px",
+            }}
+          >
+            Maps
+          </Link>
+        </Flex>
+      </Stack>
+    </Box>
+  );
+}
+
+function GridRestaurantDetail({
+  distanceMiles,
+  onBack,
+  restaurant,
+}: {
+  distanceMiles: number | null;
+  onBack: () => void;
+  restaurant: Restaurant;
+}) {
+  const image = restaurantMedia[restaurant.id];
+
+  return (
+    <Box as="section">
+      <Stack gap={4}>
+        <Button
+          alignSelf="flex-start"
+          bg="transparent"
+          borderColor={colors.border}
+          borderWidth="1px"
+          color={colors.ink}
+          onClick={onBack}
+          rounded="full"
+          size="sm"
+          variant="ghost"
+          _hover={{ bg: "#f4f0e8" }}
+          _focusVisible={{
+            outline: "2px solid",
+            outlineColor: colors.accent,
+            outlineOffset: "2px",
+          }}
+        >
+          ← Back
+        </Button>
+
+        <Box
+          bg={colors.panel}
+          borderColor={colors.border}
+          borderWidth="1px"
+          overflow="hidden"
+          rounded="2xl"
+        >
+          <SimpleGrid columns={{ base: 1, lg: 2 }}>
+            <Box
+              bg={image ? "#f4f0e8" : colors.accentSoft}
+              minH={{ base: "230px", md: "360px" }}
+              overflow="hidden"
+              position="relative"
+            >
+              {image ? (
+                <Image
+                  alt={image.alt}
+                  h="100%"
+                  htmlHeight={640}
+                  htmlWidth={780}
+                  loading="lazy"
+                  objectFit="cover"
+                  src={image.src}
+                  w="100%"
+                />
+              ) : (
+                <Stack align="center" h="100%" justify="center">
+                  <Text aria-hidden="true" fontSize="6xl" lineHeight="1">
+                    {getRestaurantEmoji(restaurant)}
+                  </Text>
+                </Stack>
+              )}
+              <Box
+                bg={image ? "rgba(255, 253, 248, 0.92)" : colors.panel}
+                borderColor={colors.border}
+                borderWidth="1px"
+                bottom={4}
+                color={colors.ink}
+                fontSize="sm"
+                fontWeight="bold"
+                left={4}
+                px={3}
+                py={2}
+                position="absolute"
+                rounded="full"
+              >
+                {getRestaurantEmoji(restaurant)} {restaurant.town}
+              </Box>
+            </Box>
+
+            <Stack gap={5} p={{ base: 5, md: 7 }}>
+              <Stack gap={3}>
+                <StatusBadge status={restaurant.status} />
+                <Heading as="h3" fontSize={{ base: "2xl", md: "4xl" }}>
+                  {restaurant.name}
+                </Heading>
+                <Text color={colors.muted} lineHeight="1.6">
+                  {restaurant.notes}
+                </Text>
+              </Stack>
+
+              <SimpleGrid
+                borderColor={colors.border}
+                borderLeftWidth="1px"
+                borderTopWidth="1px"
+                columns={{ base: 1, md: 2 }}
+              >
+                <FeatureFact
+                  label="Area"
+                  value={`${restaurant.town}, ${restaurant.region}`}
+                />
+                <FeatureFact
+                  label="Reviews"
+                  value={restaurant.rating ?? "Not published"}
+                />
+                <FeatureFact label="Category" value={restaurant.category} />
+                <FeatureFact
+                  label="Distance"
+                  value={
+                    distanceMiles === null
+                      ? "Use location or address"
+                      : `${formatDistance(distanceMiles)} away`
+                  }
+                />
+                <FeatureFact label="Address" value={restaurant.address} />
+                <FeatureFact
+                  label="Phone"
+                  value={restaurant.phone ?? "Not published"}
+                />
+              </SimpleGrid>
+
+              <Info label="Evidence" value={restaurant.evidence} />
+
+              <Flex gap={2} mt="auto" wrap="wrap">
+                {restaurant.website ? (
+                  <Link
+                    alignItems="center"
+                    bg={colors.accent}
+                    borderColor={colors.accent}
+                    borderWidth="1px"
+                    color="white"
+                    display="inline-flex"
+                    fontSize="sm"
+                    fontWeight="medium"
+                    href={restaurant.website}
+                    minH="36px"
+                    px={4}
+                    rounded="full"
+                    target="_blank"
+                    _hover={{ bg: "#1d382f", textDecoration: "none" }}
+                    _focusVisible={{
+                      outline: "2px solid",
+                      outlineColor: colors.accent,
+                      outlineOffset: "2px",
+                    }}
+                  >
+                    Website
+                  </Link>
+                ) : null}
+                <Link
+                  alignItems="center"
+                  borderColor={colors.border}
+                  borderWidth="1px"
+                  color={colors.ink}
+                  display="inline-flex"
+                  fontSize="sm"
+                  fontWeight="medium"
+                  href={getMapUrl(restaurant)}
+                  minH="36px"
+                  px={4}
+                  rounded="full"
+                  target="_blank"
+                  _hover={{ bg: "#f4f0e8", textDecoration: "none" }}
+                  _focusVisible={{
+                    outline: "2px solid",
+                    outlineColor: colors.accent,
+                    outlineOffset: "2px",
+                  }}
+                >
+                  Open in Maps
+                </Link>
+              </Flex>
+            </Stack>
+          </SimpleGrid>
+        </Box>
+      </Stack>
+    </Box>
+  );
+}
+
+function FeatureFact({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <Box
+      borderBottomColor={colors.border}
+      borderBottomWidth="1px"
+      borderRightColor={colors.border}
+      borderRightWidth="1px"
+      minH="76px"
+      p={4}
+    >
+      <Text
+        color={colors.muted}
+        fontSize="xs"
+        fontWeight="bold"
+        textTransform="uppercase"
+      >
+        {label}
+      </Text>
+      <Text fontWeight="medium" mt={1}>
+        {value}
+      </Text>
+    </Box>
+  );
+}
+
 function MapView({
   openRestaurantId,
   restaurants: visibleRestaurants,
@@ -1943,14 +2396,9 @@ function MapView({
   return (
     <Box as="section">
       <Stack gap={4}>
-        <Flex align="center" gap={3} justify="space-between" wrap="wrap">
-          <Heading as="h2" size="lg">
-            🗺️ Map View
-          </Heading>
-          <Text color={colors.muted} fontSize="sm">
-            Select a pin to inspect the listing.
-          </Text>
-        </Flex>
+        <Text color={colors.muted} fontSize="sm" textAlign="right">
+          Select a pin to inspect the listing.
+        </Text>
 
         {visibleRestaurants.length > 0 ? (
           <>
@@ -2227,10 +2675,15 @@ function RestaurantRow({
   return (
     <Box
       as="article"
-      bg={isOpen ? "#fdfaf4" : "transparent"}
-      borderBottomColor={colors.border}
+      bg={isOpen ? "#fdfaf4" : { base: colors.panel, sm: "transparent" }}
+      borderColor={colors.border}
       borderBottomWidth="1px"
+      borderLeftWidth={{ base: "1px", sm: "0" }}
+      borderRightWidth={{ base: "1px", sm: "0" }}
+      borderTopWidth={{ base: "1px", sm: "0" }}
+      overflow="hidden"
       position="relative"
+      rounded={{ base: "xl", sm: "0" }}
     >
       <Flex
         align={{ base: "stretch", md: "center" }}
@@ -2239,7 +2692,7 @@ function RestaurantRow({
       >
         <RestaurantVisual restaurant={restaurant} />
 
-        <Stack flex="1" gap={isOpen ? 5 : 0} p={{ base: 4, md: 4 }}>
+        <Stack flex="1" gap={0} p={{ base: 4, md: 4 }}>
           <Flex
             align={{ base: "stretch", md: "center" }}
             direction={{ base: "column", md: "row" }}
@@ -2290,78 +2743,94 @@ function RestaurantRow({
             </Button>
           </Flex>
 
-          {isOpen ? (
-            <Box
-              borderColor={colors.borderMuted}
-              borderTopWidth="1px"
-              id={detailsId}
-              pt={5}
-            >
-              <Stack gap={4}>
-                <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
-                  <Info label="Category" value={restaurant.category} />
-                  <Info label="Region" value={restaurant.region} />
-                  <Info label="Town / borough" value={restaurant.town} />
-                  <Info label="Address" value={restaurant.address} />
-                  <Info
-                    label="Phone"
-                    value={restaurant.phone ?? "Not published"}
-                  />
-                  <Info
-                    label="Average reviews"
-                    value={restaurant.rating ?? "Not published"}
-                  />
-                  <Info
-                    label="Review source"
-                    value={restaurant.ratingSource ?? "Not published"}
-                  />
-                  <Info
-                    label="Distance"
-                    value={
-                      distanceMiles === null
-                        ? "Use location or enter an address to calculate"
-                        : `${formatDistance(distanceMiles)} away`
-                    }
-                  />
-                  <Info
-                    label="Website"
-                    value={
-                      restaurant.website ? (
+          <Box
+            aria-hidden={!isOpen}
+            display="grid"
+            gridTemplateRows={isOpen ? "1fr" : "0fr"}
+            id={detailsId}
+            mt={isOpen ? 5 : 0}
+            opacity={isOpen ? 1 : 0}
+            overflow="hidden"
+            pointerEvents={isOpen ? "auto" : "none"}
+            transform={isOpen ? "translateY(0)" : "translateY(-6px)"}
+            transitionDuration="260ms"
+            transitionProperty="grid-template-rows, opacity, transform, margin-top"
+            transitionTimingFunction="cubic-bezier(0.22, 1, 0.36, 1)"
+            css={{
+              "@media (prefers-reduced-motion: reduce)": {
+                transform: "none",
+                transitionDuration: "1ms",
+              },
+            }}
+          >
+            <Box minH={0} overflow="hidden">
+              <Box borderColor={colors.borderMuted} borderTopWidth="1px" pt={5}>
+                <Stack gap={4}>
+                  <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
+                    <Info label="Category" value={restaurant.category} />
+                    <Info label="Region" value={restaurant.region} />
+                    <Info label="Town / borough" value={restaurant.town} />
+                    <Info label="Address" value={restaurant.address} />
+                    <Info
+                      label="Phone"
+                      value={restaurant.phone ?? "Not published"}
+                    />
+                    <Info
+                      label="Average reviews"
+                      value={restaurant.rating ?? "Not published"}
+                    />
+                    <Info
+                      label="Review source"
+                      value={restaurant.ratingSource ?? "Not published"}
+                    />
+                    <Info
+                      label="Distance"
+                      value={
+                        distanceMiles === null
+                          ? "Use location or enter an address to calculate"
+                          : `${formatDistance(distanceMiles)} away`
+                      }
+                    />
+                    <Info
+                      label="Website"
+                      value={
+                        restaurant.website ? (
+                          <Link
+                            color={colors.accent}
+                            href={restaurant.website}
+                            target="_blank"
+                            textDecoration="underline"
+                            textUnderlineOffset="3px"
+                          >
+                            Visit website
+                          </Link>
+                        ) : (
+                          "Not published"
+                        )
+                      }
+                    />
+                    <Info
+                      label="Map"
+                      value={
                         <Link
                           color={colors.accent}
-                          href={restaurant.website}
+                          href={getMapUrl(restaurant)}
                           target="_blank"
                           textDecoration="underline"
                           textUnderlineOffset="3px"
                         >
-                          Visit website
+                          Open in maps
                         </Link>
-                      ) : (
-                        "Not published"
-                      )
-                    }
-                  />
-                  <Info
-                    label="Map"
-                    value={
-                      <Link
-                        color={colors.accent}
-                        href={getMapUrl(restaurant)}
-                        target="_blank"
-                        textDecoration="underline"
-                        textUnderlineOffset="3px"
-                      >
-                        Open in maps
-                      </Link>
-                    }
-                  />
-                </SimpleGrid>
+                      }
+                    />
+                  </SimpleGrid>
 
-                <Info label="Evidence" value={restaurant.evidence} />
-                <Info label="Notes" value={restaurant.notes} />
-              </Stack>
+                  <Info label="Evidence" value={restaurant.evidence} />
+                  <Info label="Notes" value={restaurant.notes} />
+                </Stack>
+              </Box>
             </Box>
-          ) : null}
+          </Box>
         </Stack>
       </Flex>
     </Box>
@@ -2497,7 +2966,7 @@ function isStatusFilter(value: string | null): value is StatusFilter {
 }
 
 function isViewMode(value: string | null): value is ViewMode {
-  return value === "list" || value === "map";
+  return value === "grid" || value === "list" || value === "map";
 }
 
 function isSortMode(value: string | null): value is SortMode {
